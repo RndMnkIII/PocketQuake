@@ -1,0 +1,29 @@
+{
+    "data": {
+        "magic": "APF_VER_1",
+        "data_slots": [
+            {
+                "id": 0,
+                "name": "PAK Data",
+                "required": true,
+                "parameters": 0,
+                "extensions": [
+                    "pak"
+                ],
+                "filename": "pak0.pak",
+                "address": "0x01000000"
+            },
+            {
+                "id": 1,
+                "name": "Quake Binary",
+                "required": true,
+                "parameters": 0,
+                "extensions": [
+                    "bin"
+                ],
+                "filename": "quake.bin",
+                "address": "0x00200000"
+            }
+        ]
+    }
+}
