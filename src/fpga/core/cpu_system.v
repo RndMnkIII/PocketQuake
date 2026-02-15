@@ -207,15 +207,17 @@ VexRiscv cpu (
 // ============================================
 // Arbitrated memory interface
 // ============================================
-// Data bus has priority over instruction bus
+// Round-robin arbiter: prevents I-bus starvation during sustained D-bus
+// traffic (e.g. large memcpy causing continuous D-cache line fills).
 // Convert Wishbone to simple valid/ready protocol
 
 wire live_ibus_req = ibus_cyc & ibus_stb & ~ibus_ack;
 wire live_dbus_req = dbus_cyc & dbus_stb & ~dbus_ack;
 
-// Grant: data has priority
-wire live_dbus_grant = live_dbus_req;
-wire live_ibus_grant = live_ibus_req & ~live_dbus_req;
+// Round-robin: track last grant, give priority to the other bus
+reg last_grant_dbus;
+wire live_dbus_grant = live_dbus_req & (~live_ibus_req | ~last_grant_dbus);
+wire live_ibus_grant = live_ibus_req & ~live_dbus_grant;
 
 // Muxed memory interface signals
 wire        live_mem_valid = live_dbus_grant | live_ibus_grant;
@@ -732,6 +734,7 @@ always @(posedge clk or posedge reset) begin
         dbus_dat_miso <= 0;
         mem_pending <= 0;
         pending_bus <= BUS_NONE;
+        last_grant_dbus <= 0;
         req_addr <= 0;
         req_wdata <= 0;
         req_wstrb <= 0;
@@ -836,6 +839,7 @@ always @(posedge clk or posedge reset) begin
             end else begin
                 // Start new memory access
                 pending_bus <= live_dbus_grant ? BUS_DBUS : BUS_IBUS;
+                last_grant_dbus <= live_dbus_grant;
                 req_addr <= live_mem_addr;
                 req_wdata <= live_mem_wdata;
                 req_wstrb <= live_mem_wstrb;

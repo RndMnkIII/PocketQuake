@@ -65,7 +65,7 @@ assign {phy_ras, phy_cas, phy_we} = cmd;
     localparam      CMD_SELFENTER       = 3'b001;
     localparam      CMD_SELFEXIT        = 3'b111;
 
-    localparam      CAS                 =   4'd3;   // timings are for 110MHz
+    localparam      CAS                 =   4'd3;   // timings are for 110MHz (9.1ns)
     localparam      TIMING_LMR          =   4'd2;   // tLMR = 2ck
     localparam      TIMING_AUTOREFRESH  =   4'd9;   // tRFC = 80ns @ 110MHz = 9 cycles (81.8ns)
     localparam      TIMING_PRECHARGE    =   4'd2;   // tRP = 15ns @ 110MHz = 2 cycles (18.2ns)

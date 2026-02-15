@@ -32,7 +32,7 @@ In menus, A and B act as confirm and D-pad up/down navigates.
 ## Features
 
 - **Full Quake engine** — Software-rendered Quake at 320x240, 8-bit indexed color with hardware palette lookup
-- **VexRiscv RISC-V CPU** — rv32imaf (integer, multiply/divide, atomics, single-precision FPU) at 100 MHz
+- **VexRiscv RISC-V CPU** — rv32imaf (integer, multiply/divide, atomics, single-precision FPU) at 110 MHz
 - **Hardware span rasterizer** — FPGA accelerator offloads textured span drawing, z-buffer operations, and surface block rendering from the CPU
 - **48 kHz stereo audio** — I2S output with 11,025 Hz mix rate upsampled via Bresenham
 - **2-player link cable multiplayer** — GBC link cable at 256 kHz, full-duplex serial protocol
@@ -48,7 +48,7 @@ In menus, A and B act as confirm and D-pad up/down navigates.
 |                                                                       |
 |  +-----------------------+    +-----------------------------------+   |
 |  |    VexRiscv CPU       |    |        Memory Subsystem            |   |
-|  |  rv32imaf @ 100 MHz   |    |                                   |   |
+|  |  rv32imaf @ 110 MHz   |    |                                   |   |
 |  |                       |    |  +--------+  +--------+  +------+ |   |
 |  |  I$ 32KB  (2-way)     |    |  | BRAM   |  | SDRAM  |  | PSRAM| |   |
 |  |  D$ 128KB (2-way)     |    |  | 64KB   |  | 64MB   |  | 16MB | |   |
@@ -86,8 +86,10 @@ In menus, A and B act as confirm and D-pad up/down navigates.
 | `0x40000000`              | 256 B  | System registers                                     |
 | `0x48000000`              | 256 B  | Span rasterizer registers                            |
 | `0x4C000000`              | 8 B    | Audio FIFO (write samples / read status)             |
-| `0x50000000`              | 256 B  | Link cable MMIO registers                            |
+| `0x4D000000`              | 256 B  | Link cable MMIO registers                            |
+| `0x50000000 - 0x53FFFFFF` | 64 MB  | SDRAM uncached alias (bypasses D-cache)              |
 | `0x54000000`              | 16 KB  | Colormap BRAM                                        |
+| `0x58000000`              | 8 KB   | Alias Transform MAC (registers + normal table)       |
 | `0x5C000000`              | 16 B   | SRAM fill engine registers                           |
 
 ## System Registers (0x40000000)
@@ -132,7 +134,7 @@ Three-way priority mux for SRAM access: CPU > span rasterizer > fill engine.
 - **Color depth:** 8-bit indexed with 256-entry RGB888 hardware palette
 - **Scanout:** Burst reads from SDRAM (80 bursts x BL=2 = 320 pixels/line)
 - **Double buffered:** CPU draws to back buffer, `FB_SWAP` swaps on vsync
-- **Clock domain crossing:** Dual-clock FIFO between pixel clock (12.288 MHz) and SDRAM clock (100 MHz)
+- **Clock domain crossing:** Dual-clock FIFO between pixel clock (12.288 MHz) and SDRAM clock (110 MHz)
 
 ## Audio Pipeline
 
@@ -303,7 +305,7 @@ SD Card Root/
 
 - **JTAG programming loses SDRAM data.** After JTAG programming, the Pocket must reload `quake.bin` and `pak0.pak` from the SD card. Always deploy both firmware and bitstream to the SD card for testing.
 - **Firmware and FPGA must match.** The BRAM initialization (MIF) is compiled into the bitstream. If `quake.bin` on the SD card doesn't match the MIF in the FPGA, `.fasttext` function calls will jump to wrong addresses and crash.
-- **RVC is disabled** for timing closure at 100 MHz. The firmware links against a custom `libgcc_norvc.a`.
+- **RVC is disabled** for timing closure at 110 MHz. The firmware links against a custom `libgcc_norvc.a`.
 
 ## License
 

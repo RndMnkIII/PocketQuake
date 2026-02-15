@@ -16,8 +16,8 @@ RELEASE_ASSETS_DIR = $(OUTPUT_DIR)/Assets/pocketquake/common
 # Files
 BITSTREAM_SOURCE = $(FPGA_DIR)/output_files/$(QUARTUS_PROJECT).rbf
 BITSTREAM_TARGET = $(RELEASE_CORE_DIR)/bitstream.rbf_r
-FIRMWARE_SOURCE = $(FIRMWARE_DIR)/firmware.bin
-FIRMWARE_TARGET = $(RELEASE_ASSETS_DIR)/firmware.bin
+FIRMWARE_SOURCE = $(FIRMWARE_DIR)/quake.bin
+FIRMWARE_TARGET = $(RELEASE_ASSETS_DIR)/quake.bin
 
 # JSON configuration files
 JSON_FILES = core.json video.json audio.json input.json data.json variants.json interact.json
@@ -55,7 +55,7 @@ firmware:
 	@echo "Firmware build complete"
 
 # Package release (uses existing bitstream)
-package: $(REVERSE_BITS) check-bitstream release-dirs copy-bitstream copy-json copy-platform copy-icon install-txt
+package: $(REVERSE_BITS) check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon install-txt
 	@echo ""
 	@echo "Build complete!"
 	@echo "Release package: $(OUTPUT_DIR)/"
@@ -87,6 +87,11 @@ $(REVERSE_BITS): reverse_bits.c
 copy-bitstream: $(REVERSE_BITS)
 	@echo "Converting bitstream to RBF_R format..."
 	$(REVERSE_BITS) $(BITSTREAM_SOURCE) $(BITSTREAM_TARGET)
+
+# Copy firmware (quake.bin)
+copy-firmware:
+	@echo "Copying quake.bin..."
+	cp $(FIRMWARE_SOURCE) $(FIRMWARE_TARGET)
 
 # Copy JSON configuration files
 copy-json:
@@ -137,7 +142,7 @@ SD Card Root/
 +-- Assets/
 |   +-- pocketquake/
 |       +-- common/
-|           +-- firmware.bin
+|           +-- quake.bin
 +-- Cores/
 |   +-- $(CORE_NAME)/
 |       +-- bitstream.rbf_r
@@ -209,4 +214,4 @@ program: firmware-mif
 	@echo "Programming FPGA via JTAG..."
 	$(MAKE) -C $(FPGA_DIR) program
 
-.PHONY: all full fpga firmware-mif firmware firmware-update fw package check-bitstream release-dirs copy-bitstream copy-json copy-platform copy-icon install-txt clean clean-fpga-cache clean-fpga quick program
+.PHONY: all full fpga firmware-mif firmware firmware-update fw package check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon install-txt clean clean-fpga-cache clean-fpga quick program
