@@ -132,35 +132,35 @@ reg        fifo_wr_ptr;
 reg        fifo_rd_ptr;
 reg [1:0]  fifo_count;    // 0-2
 
-(* ramstyle = "MLAB" *) reg        fifo_is_z      [0:1];
-(* ramstyle = "MLAB" *) reg        fifo_is_surf   [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_fb        [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_tex_addr  [0:1];
-(* ramstyle = "MLAB" *) reg [15:0] fifo_tex_width [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_s         [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_t         [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_sstep     [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_tstep     [0:1];
-(* ramstyle = "MLAB" *) reg [15:0] fifo_count_f   [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_light     [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_lightstep [0:1];
-(* ramstyle = "MLAB" *) reg        fifo_cmap_en   [0:1];
-(* ramstyle = "MLAB" *) reg        fifo_turb_en   [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_zaddr     [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_izi       [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_zistep    [0:1];
-(* ramstyle = "MLAB" *) reg [15:0] fifo_zcount    [0:1];
+reg        fifo_is_z      [0:1];
+reg        fifo_is_surf   [0:1];
+reg [31:0] fifo_fb        [0:1];
+reg [31:0] fifo_tex_addr  [0:1];
+reg [15:0] fifo_tex_width [0:1];
+reg [31:0] fifo_s         [0:1];
+reg [31:0] fifo_t         [0:1];
+reg [31:0] fifo_sstep     [0:1];
+reg [31:0] fifo_tstep     [0:1];
+reg [15:0] fifo_count_f   [0:1];
+reg [31:0] fifo_light     [0:1];
+reg [31:0] fifo_lightstep [0:1];
+reg        fifo_cmap_en   [0:1];
+reg        fifo_turb_en   [0:1];
+reg [31:0] fifo_zaddr     [0:1];
+reg [31:0] fifo_izi       [0:1];
+reg [31:0] fifo_zistep    [0:1];
+reg [15:0] fifo_zcount    [0:1];
 
 reg        fifo_overflow;
 
 // Surface block FIFO fields
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_tl [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_tr [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_bl [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_br [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_tex_step [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_dest_step[0:1];
-(* ramstyle = "MLAB" *) reg [2:0]  fifo_surf_blockshift[0:1];
+reg [31:0] fifo_surf_light_tl [0:1];
+reg [31:0] fifo_surf_light_tr [0:1];
+reg [31:0] fifo_surf_light_bl [0:1];
+reg [31:0] fifo_surf_light_br [0:1];
+reg [31:0] fifo_surf_tex_step [0:1];
+reg [31:0] fifo_surf_dest_step[0:1];
+reg [2:0]  fifo_surf_blockshift[0:1];
 
 // Texture cache (16-entry direct-mapped, 4-word lines = 16 texels per line)
 // Index = tex_word_addr[5:2], Line offset = tex_word_addr[1:0], Tag = tex_word_addr[23:6]

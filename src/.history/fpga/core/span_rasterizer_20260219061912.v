@@ -154,13 +154,13 @@ reg [1:0]  fifo_count;    // 0-2
 reg        fifo_overflow;
 
 // Surface block FIFO fields
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_tl [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_tr [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_bl [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_light_br [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_tex_step [0:1];
-(* ramstyle = "MLAB" *) reg [31:0] fifo_surf_dest_step[0:1];
-(* ramstyle = "MLAB" *) reg [2:0]  fifo_surf_blockshift[0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_light_tl [0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_light_tr [0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_light_bl [0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_light_br [0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_tex_step [0:1];
+(* ramstyle = "MLAB" *)reg [31:0] fifo_surf_dest_step[0:1];
+(* ramstyle = "MLAB" *)reg [2:0]  fifo_surf_blockshift[0:1];
 
 // Texture cache (16-entry direct-mapped, 4-word lines = 16 texels per line)
 // Index = tex_word_addr[5:2], Line offset = tex_word_addr[1:0], Tag = tex_word_addr[23:6]

@@ -236,12 +236,12 @@ assign bridge_endian_little = 1;
 
 // cart is unused, so set all level translators accordingly
 // directions are 0:IN, 1:OUT
-assign cart_tran_bank3 = 8'hzz;
-assign cart_tran_bank3_dir = 1'b0;
-assign cart_tran_bank2 = 8'hzz;
-assign cart_tran_bank2_dir = 1'b0;
-assign cart_tran_bank1 = 8'hzz;
-assign cart_tran_bank1_dir = 1'b0;
+// assign cart_tran_bank3 = 8'hzz;
+// assign cart_tran_bank3_dir = 1'b0;
+// assign cart_tran_bank2 = 8'hzz;
+// assign cart_tran_bank2_dir = 1'b0;
+// assign cart_tran_bank1 = 8'hzz;
+// assign cart_tran_bank1_dir = 1'b0;
 assign cart_tran_bank0 = 4'hf;
 assign cart_tran_bank0_dir = 1'b1;
 assign cart_tran_pin30 = 1'b0;      // reset or cs2, we let the hw control it by itself
@@ -1051,20 +1051,20 @@ assign video_hs = vidout_hs;
     // 320x240 @ 60Hz with 12.288 MHz pixel clock
     // Total: 400 x 512 = 204,800 pixels/frame
     // 12,288,000 / 204,800 = 60 Hz
-    localparam  VID_V_BPORCH = 'd16;
-    localparam  VID_V_ACTIVE = 'd240;
-    localparam  VID_V_TOTAL = 'd512;
-    localparam  VID_H_BPORCH = 'd40;
-    localparam  VID_H_ACTIVE = 'd320;
-    localparam  VID_H_TOTAL = 'd400;
+    // localparam  VID_V_BPORCH = 'd16;
+    // localparam  VID_V_ACTIVE = 'd240;
+    // localparam  VID_V_TOTAL = 'd512;
+    // localparam  VID_H_BPORCH = 'd40;
+    // localparam  VID_H_ACTIVE = 'd320;
+    // localparam  VID_H_TOTAL = 'd400;
 
     reg [15:0]  frame_count;
 
     reg [9:0]   x_count;
     reg [9:0]   y_count;
 
-    wire [9:0]  visible_x = x_count - VID_H_BPORCH;
-    wire [9:0]  visible_y = y_count - VID_V_BPORCH;
+    //wire [9:0]  visible_x = x_count - VID_H_BPORCH;
+    //wire [9:0]  visible_y = y_count - VID_V_BPORCH;
 
     reg [23:0]  vidout_rgb;
     reg         vidout_de, vidout_de_1;
@@ -1370,72 +1370,163 @@ assign video_hs = vidout_hs;
         .pal_data(cpu_pal_data)
     );
 
-always @(posedge clk_core_12288 or negedge reset_n) begin
+// always @(posedge clk_core_12288 or negedge reset_n) begin
 
-    if(~reset_n) begin
+//     if(~reset_n) begin
 
-        x_count <= 0;
-        y_count <= 0;
+//         x_count <= 0;
+//         y_count <= 0;
 
-    end else begin
-        vidout_de <= 0;
-        vidout_skip <= 0;
-        vidout_vs <= 0;
-        vidout_hs <= 0;
+//     end else begin
+//         vidout_de <= 0;
+//         vidout_skip <= 0;
+//         vidout_vs <= 0;
+//         vidout_hs <= 0;
 
-        vidout_hs_1 <= vidout_hs;
-        vidout_de_1 <= vidout_de;
+//         vidout_hs_1 <= vidout_hs;
+//         vidout_de_1 <= vidout_de;
 
-        // x and y counters
-        x_count <= x_count + 1'b1;
-        if(x_count == VID_H_TOTAL-1) begin
+//         // x and y counters
+//         x_count <= x_count + 1'b1;
+//         if(x_count == VID_H_TOTAL-1) begin
+//             x_count <= 0;
+
+//             y_count <= y_count + 1'b1;
+//             if(y_count == VID_V_TOTAL-1) begin
+//                 y_count <= 0;
+//             end
+//         end
+
+//         // generate sync
+//         if(x_count == 0 && y_count == 0) begin
+//             // sync signal in back porch
+//             // new frame
+//             vidout_vs <= 1;
+//             frame_count <= frame_count + 1'b1;
+//         end
+
+//         // we want HS to occur a bit after VS, not on the same cycle
+//         if(x_count == 3) begin
+//             // sync signal in back porch
+//             // new line
+//             vidout_hs <= 1;
+//         end
+
+//         // inactive screen areas are black
+//         vidout_rgb <= 24'h0;
+//         // generate active video
+//         if(x_count >= VID_H_BPORCH && x_count < VID_H_ACTIVE+VID_H_BPORCH) begin
+
+//             if(y_count >= VID_V_BPORCH && y_count < VID_V_ACTIVE+VID_V_BPORCH) begin
+//                 // data enable. this is the active region of the line
+//                 vidout_de <= 1;
+
+//                 // Display mode: 0=terminal overlay, 1=framebuffer only
+//                 if (display_mode) begin
+//                     // Framebuffer only mode
+//                     vidout_rgb <= framebuffer_pixel_color;
+//                 end else begin
+//                     // Terminal overlay mode - white text overlays framebuffer
+//                     if (terminal_pixel_color == 24'hFFFFFF)
+//                         vidout_rgb <= terminal_pixel_color;
+//                     else
+//                         vidout_rgb <= framebuffer_pixel_color;
+//                 end
+//             end
+//         end
+//     end
+// end
+
+
+// Nuevos parámetros para 240p @ 60Hz (15.7 KHz) con 12.288 MHz clock
+    // Horizontal: 320 visible, 780 total
+    localparam VID_H_ACTIVE  = 'd320;
+    localparam VID_H_FPORCH  = 'd16;  // Front Porch
+    localparam VID_H_SYNC    = 'd60;  // Sync pulse (~4.8us)
+    localparam VID_H_BPORCH  = 'd384; // Back Porch (Ajustado para centrar y completar 780)
+    localparam VID_H_TOTAL   = 'd780; 
+
+    // Vertical: 240 visible, 262 total
+    localparam VID_V_ACTIVE  = 'd240;
+    localparam VID_V_FPORCH  = 'd3;   
+    localparam VID_V_SYNC    = 'd3;   
+    localparam VID_V_BPORCH  = 'd16;  
+    localparam VID_V_TOTAL   = 'd262;
+
+    // Ajuste de los wire visibles (ahora relativos al inicio del área activa)
+    wire [9:0] visible_x = (x_count >= (VID_H_SYNC + VID_H_BPORCH)) ? (x_count - (VID_H_SYNC + VID_H_BPORCH)) : 10'd0;
+    wire [9:0] visible_y = (y_count >= (VID_V_SYNC + VID_V_BPORCH)) ? (y_count - (VID_V_SYNC + VID_V_BPORCH)) : 10'd0;
+
+    always @(posedge clk_core_12288 or negedge reset_n) begin
+        if(~reset_n) begin
             x_count <= 0;
-
-            y_count <= y_count + 1'b1;
-            if(y_count == VID_V_TOTAL-1) begin
-                y_count <= 0;
-            end
-        end
-
-        // generate sync
-        if(x_count == 0 && y_count == 0) begin
-            // sync signal in back porch
-            // new frame
-            vidout_vs <= 1;
-            frame_count <= frame_count + 1'b1;
-        end
-
-        // we want HS to occur a bit after VS, not on the same cycle
-        if(x_count == 3) begin
-            // sync signal in back porch
-            // new line
+            y_count <= 0;
+            vidout_rgb <= 0;
+            vidout_de <= 0;
+            vidout_vs <= 1; // Syncs en CRT suelen ser activos en bajo (idle en 1)
             vidout_hs <= 1;
-        end
+        end else begin
+            // Contadores
+            if(x_count == VID_H_TOTAL - 1) begin
+                x_count <= 0;
+                if(y_count == VID_V_TOTAL - 1) begin
+                    y_count <= 0;
+                    frame_count <= frame_count + 1'b1;
+                end else begin
+                    y_count <= y_count + 1'b1;
+                end
+            end else begin
+                x_count <= x_count + 1'b1;
+            end
 
-        // inactive screen areas are black
-        vidout_rgb <= 24'h0;
-        // generate active video
-        if(x_count >= VID_H_BPORCH && x_count < VID_H_ACTIVE+VID_H_BPORCH) begin
+            // --- Generación de Sincronismos (Activos en BAJO para CRT estándar) ---
+            
+            // HSYNC: Píxel 0 hasta VID_H_SYNC
+            vidout_hs <= (x_count < VID_H_SYNC) ? 0 : 1;
 
-            if(y_count >= VID_V_BPORCH && y_count < VID_V_ACTIVE+VID_V_BPORCH) begin
-                // data enable. this is the active region of the line
+            // VSYNC: Línea 0 hasta VID_V_SYNC
+            vidout_vs <= (y_count < VID_V_SYNC) ? 0 : 1;
+
+            // --- Generación de Video y Data Enable (DE) ---
+            // El área activa comienza después del Sync + Back Porch
+            if ((x_count >= (VID_H_SYNC + VID_H_BPORCH)) && (x_count < (VID_H_SYNC + VID_H_BPORCH + VID_H_ACTIVE)) &&
+                (y_count >= (VID_V_SYNC + VID_V_BPORCH)) && (y_count < (VID_V_SYNC + VID_V_BPORCH + VID_V_ACTIVE))) 
+            begin
                 vidout_de <= 1;
-
-                // Display mode: 0=terminal overlay, 1=framebuffer only
+                
+                // Lógica de color original
                 if (display_mode) begin
-                    // Framebuffer only mode
                     vidout_rgb <= framebuffer_pixel_color;
                 end else begin
-                    // Terminal overlay mode - white text overlays framebuffer
                     if (terminal_pixel_color == 24'hFFFFFF)
                         vidout_rgb <= terminal_pixel_color;
                     else
                         vidout_rgb <= framebuffer_pixel_color;
                 end
+            end else begin
+                vidout_de <= 0;
+                vidout_rgb <= 24'h000000; // Importante: Negro total fuera del área activa
             end
         end
     end
-end
+
+wire [5:0] crt_r, crt_g, crt_b;
+	assign crt_r = vidout_rgb[23:18];
+	assign crt_g = vidout_rgb[15:10];
+	assign crt_b = vidout_rgb[7:2];
+
+
+ //Analogizer support for RGBS output
+ 	//BK3
+ 	assign cart_tran_bank3         = {crt_r[5:0],~^{vidout_hs, vidout_vs},1'b1};                          //on reset state set ouput value to 8'hZ
+ 	assign cart_tran_bank3_dir     = 1'b1;                                     //on reset state set pin dir to input
+ 	//BK2
+ 	assign cart_tran_bank2         = {crt_b[0],~(vidout_de),crt_g[5:0]};                          //on reset state set ouput value to 8'hZ
+ 	assign cart_tran_bank2_dir     =  1'b1;                                     //on reset state set pin dir to input
+ 	//BK1
+ 	assign cart_tran_bank1         =  {2'b00,clk_core_12288,crt_b[5:1]};      //on reset state set ouput value to 8'hZ
+ 	assign cart_tran_bank1_dir     =  1'b1;                                     //on reset state set pin dir to input
+ 	//PIN30
 
 
 
