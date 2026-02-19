@@ -236,12 +236,12 @@ assign bridge_endian_little = 1;
 
 // cart is unused, so set all level translators accordingly
 // directions are 0:IN, 1:OUT
-// assign cart_tran_bank3 = 8'hzz;
-// assign cart_tran_bank3_dir = 1'b0;
-// assign cart_tran_bank2 = 8'hzz;
-// assign cart_tran_bank2_dir = 1'b0;
-// assign cart_tran_bank1 = 8'hzz;
-// assign cart_tran_bank1_dir = 1'b0;
+assign cart_tran_bank3 = 8'hzz;
+assign cart_tran_bank3_dir = 1'b0;
+assign cart_tran_bank2 = 8'hzz;
+assign cart_tran_bank2_dir = 1'b0;
+assign cart_tran_bank1 = 8'hzz;
+assign cart_tran_bank1_dir = 1'b0;
 assign cart_tran_bank0 = 4'hf;
 assign cart_tran_bank0_dir = 1'b1;
 assign cart_tran_pin30 = 1'b0;      // reset or cs2, we let the hw control it by itself
@@ -266,7 +266,7 @@ assign link_sd_i = port_tran_sd;
 // PSRAM Controller for CRAM0 (16MB)
 // Uses muxed signals for bridge/CPU arbitration
 psram_controller #(
-    .CLOCK_SPEED(110.0)
+    .CLOCK_SPEED(100.0)
 ) psram0 (
     .clk(clk_ram_controller),
     .reset_n(reset_n),
@@ -296,18 +296,18 @@ psram_controller #(
     .cram_lb_n(cram0_lb_n)
 );
 
-// CRAM1 unused - framebuffer moved to SDRAM
-assign cram1_a = 6'h0;
-assign cram1_dq = 16'hZZZZ;
-assign cram1_clk = 1'b0;
+// CRAM1 unused - tie off all outputs
+assign cram1_a     = 6'h0;
+assign cram1_dq    = 16'hZZZZ;
+assign cram1_clk   = 1'b0;
 assign cram1_adv_n = 1'b1;
-assign cram1_cre = 1'b0;
+assign cram1_cre   = 1'b0;
 assign cram1_ce0_n = 1'b1;
 assign cram1_ce1_n = 1'b1;
-assign cram1_oe_n = 1'b1;
-assign cram1_we_n = 1'b1;
-assign cram1_ub_n = 1'b1;
-assign cram1_lb_n = 1'b1;
+assign cram1_oe_n  = 1'b1;
+assign cram1_we_n  = 1'b1;
+assign cram1_ub_n  = 1'b1;
+assign cram1_lb_n  = 1'b1;
 
 // SDRAM word interface signals (directly matching io_sdram interface)
 reg             ram1_word_rd;
@@ -331,6 +331,7 @@ wire [31:0] cpu_sdram_rdata;
 wire        cpu_sdram_busy;
 
 // CPU to PSRAM interface (same clock domain as CPU - no CDC needed)
+// 22-bit word address covers 16MB (CRAM0 only)
 wire        cpu_psram_rd;
 wire        cpu_psram_wr;
 wire [21:0] cpu_psram_addr;
@@ -701,13 +702,15 @@ end
 wire bridge_wr_active = bridge_wr_sync3 | bridge_wr_sync4 | bridge_wr_pending | bridge_wr_done;
 wire bridge_rd_active = bridge_rd_sync3 | bridge_rd_sync4 | bridge_rd_pending | bridge_rd_done;
 
-// SDRAM access arbiter - runs at SDRAM controller clock (100 MHz)
+// SDRAM access arbiter - runs at SDRAM controller clock (95 MHz)
 // Priority: Bridge > Peripheral DMA > CPU
 // CPU runs at same clock as SDRAM controller (no CDC needed)
+reg cpu_sdram_accepted;  // Pulses when arbiter actually forwards a CPU command
 always @(posedge clk_ram_controller) begin
     ram1_word_rd <= 0;
     ram1_word_wr <= 0;
     ram1_word_burst_len <= 3'd0;  // Default: single word reads
+    cpu_sdram_accepted <= 0;
 
     // Issue SDRAM command on sync4 rising edge for bridge
     if (bridge_wr_sync4 && !bridge_wr_done && !bridge_wr_pending && !ram1_word_busy) begin
@@ -734,11 +737,13 @@ always @(posedge clk_ram_controller) begin
             ram1_word_rd <= 1;
             ram1_word_addr <= cpu_sdram_addr;
             ram1_word_burst_len <= cpu_sdram_burst_len;
+            cpu_sdram_accepted <= 1;
         end else if (cpu_sdram_wr) begin
             ram1_word_wr <= 1;
             ram1_word_addr <= cpu_sdram_addr;
             ram1_word_data <= cpu_sdram_wdata;
             ram1_word_wstrb <= cpu_sdram_wstrb;
+            cpu_sdram_accepted <= 1;
         end
     end
 end
@@ -778,15 +783,15 @@ end
 
 // PSRAM mux: Bridge writes have priority, CPU access when bridge idle
 // CPU runs at same clock as PSRAM controller (no CDC needed)
-assign psram_mux_rd = cpu_psram_rd && !bridge_psram_wr_active;
+assign psram_mux_rd = bridge_psram_wr_active ? 1'b0 : cpu_psram_rd;
 assign psram_mux_wr = bridge_psram_write_pending ? 1'b1 : cpu_psram_wr;
 assign psram_mux_addr = bridge_psram_write_pending ? bridge_psram_addr_ram_clk[23:2] : cpu_psram_addr;
 assign psram_mux_wdata = bridge_psram_write_pending ? bridge_psram_wr_data_ram_clk : cpu_psram_wdata;
 assign psram_mux_wstrb = bridge_psram_write_pending ? 4'b1111 : cpu_psram_wstrb;
 
-// CPU PSRAM data connections - direct (same clock domain)
+// CPU PSRAM data connections - single CRAM0
 assign cpu_psram_rdata = psram_mux_rdata;
-assign cpu_psram_busy = psram_mux_busy | bridge_psram_wr_active;
+assign cpu_psram_busy = bridge_psram_wr_active | psram_mux_busy;
 assign cpu_psram_rdata_valid = psram_mux_rdata_valid;
 
 
@@ -1051,20 +1056,20 @@ assign video_hs = vidout_hs;
     // 320x240 @ 60Hz with 12.288 MHz pixel clock
     // Total: 400 x 512 = 204,800 pixels/frame
     // 12,288,000 / 204,800 = 60 Hz
-    // localparam  VID_V_BPORCH = 'd16;
-    // localparam  VID_V_ACTIVE = 'd240;
-    // localparam  VID_V_TOTAL = 'd512;
-    // localparam  VID_H_BPORCH = 'd40;
-    // localparam  VID_H_ACTIVE = 'd320;
-    // localparam  VID_H_TOTAL = 'd400;
+    localparam  VID_V_BPORCH = 'd16;
+    localparam  VID_V_ACTIVE = 'd240;
+    localparam  VID_V_TOTAL = 'd512;
+    localparam  VID_H_BPORCH = 'd40;
+    localparam  VID_H_ACTIVE = 'd320;
+    localparam  VID_H_TOTAL = 'd400;
 
     reg [15:0]  frame_count;
 
     reg [9:0]   x_count;
     reg [9:0]   y_count;
 
-    //wire [9:0]  visible_x = x_count - VID_H_BPORCH;
-    //wire [9:0]  visible_y = y_count - VID_V_BPORCH;
+    wire [9:0]  visible_x = x_count - VID_H_BPORCH;
+    wire [9:0]  visible_y = y_count - VID_V_BPORCH;
 
     reg [23:0]  vidout_rgb;
     reg         vidout_de, vidout_de_1;
@@ -1084,9 +1089,9 @@ assign video_hs = vidout_hs;
     wire display_mode;
     wire [24:0] fb_display_addr;
 
-    // VexRiscv CPU system - running at 100 MHz (CPU + memory)
+    // VexRiscv CPU system - running at 95 MHz (CPU + memory)
     cpu_system cpu (
-        .clk(clk_cpu),  // 100 MHz
+        .clk(clk_cpu),  // 95 MHz
         .clk_74a(clk_74a),
         .reset_n(reset_n),
         .dataslot_allcomplete(dataslot_allcomplete),
@@ -1113,6 +1118,7 @@ assign video_hs = vidout_hs;
         .sdram_burst_len(cpu_sdram_burst_len),
         .sdram_rdata(cpu_sdram_rdata),
         .sdram_busy(cpu_sdram_busy),
+        .sdram_accepted(cpu_sdram_accepted),
         .sdram_rdata_valid(ram1_word_q_valid),
         // PSRAM interface (to psram_controller)
         .psram_rd(cpu_psram_rd),
@@ -1309,7 +1315,7 @@ assign video_hs = vidout_hs;
 
     text_terminal terminal (
         .clk(clk_core_12288),
-        .clk_cpu(clk_cpu),  // CPU clock for memory interface (100 MHz)
+        .clk_cpu(clk_cpu),  // CPU clock for memory interface (95 MHz)
         .reset_n(reset_n),
         .pixel_x(visible_x),
         .pixel_y(visible_y),
@@ -1354,7 +1360,7 @@ assign video_hs = vidout_hs;
         .line_start(line_start),
         .pixel_color(framebuffer_pixel_color),
         .fb_base_addr(fb_display_addr),  // 25-bit SDRAM 16-bit word address
-        // SDRAM clock domain (100 MHz)
+        // SDRAM clock domain (110 MHz)
         .clk_sdram(clk_ram_controller),
         // SDRAM burst read interface
         .burst_rd(video_burst_rd),
@@ -1370,163 +1376,72 @@ assign video_hs = vidout_hs;
         .pal_data(cpu_pal_data)
     );
 
-// always @(posedge clk_core_12288 or negedge reset_n) begin
+always @(posedge clk_core_12288 or negedge reset_n) begin
 
-//     if(~reset_n) begin
+    if(~reset_n) begin
 
-//         x_count <= 0;
-//         y_count <= 0;
+        x_count <= 0;
+        y_count <= 0;
 
-//     end else begin
-//         vidout_de <= 0;
-//         vidout_skip <= 0;
-//         vidout_vs <= 0;
-//         vidout_hs <= 0;
+    end else begin
+        vidout_de <= 0;
+        vidout_skip <= 0;
+        vidout_vs <= 0;
+        vidout_hs <= 0;
 
-//         vidout_hs_1 <= vidout_hs;
-//         vidout_de_1 <= vidout_de;
+        vidout_hs_1 <= vidout_hs;
+        vidout_de_1 <= vidout_de;
 
-//         // x and y counters
-//         x_count <= x_count + 1'b1;
-//         if(x_count == VID_H_TOTAL-1) begin
-//             x_count <= 0;
-
-//             y_count <= y_count + 1'b1;
-//             if(y_count == VID_V_TOTAL-1) begin
-//                 y_count <= 0;
-//             end
-//         end
-
-//         // generate sync
-//         if(x_count == 0 && y_count == 0) begin
-//             // sync signal in back porch
-//             // new frame
-//             vidout_vs <= 1;
-//             frame_count <= frame_count + 1'b1;
-//         end
-
-//         // we want HS to occur a bit after VS, not on the same cycle
-//         if(x_count == 3) begin
-//             // sync signal in back porch
-//             // new line
-//             vidout_hs <= 1;
-//         end
-
-//         // inactive screen areas are black
-//         vidout_rgb <= 24'h0;
-//         // generate active video
-//         if(x_count >= VID_H_BPORCH && x_count < VID_H_ACTIVE+VID_H_BPORCH) begin
-
-//             if(y_count >= VID_V_BPORCH && y_count < VID_V_ACTIVE+VID_V_BPORCH) begin
-//                 // data enable. this is the active region of the line
-//                 vidout_de <= 1;
-
-//                 // Display mode: 0=terminal overlay, 1=framebuffer only
-//                 if (display_mode) begin
-//                     // Framebuffer only mode
-//                     vidout_rgb <= framebuffer_pixel_color;
-//                 end else begin
-//                     // Terminal overlay mode - white text overlays framebuffer
-//                     if (terminal_pixel_color == 24'hFFFFFF)
-//                         vidout_rgb <= terminal_pixel_color;
-//                     else
-//                         vidout_rgb <= framebuffer_pixel_color;
-//                 end
-//             end
-//         end
-//     end
-// end
-
-
-// Nuevos parámetros para 240p @ 60Hz (15.7 KHz) con 12.288 MHz clock
-    // Horizontal: 320 visible, 780 total
-    localparam VID_H_ACTIVE  = 'd320;
-    localparam VID_H_FPORCH  = 'd16;  // Front Porch
-    localparam VID_H_SYNC    = 'd60;  // Sync pulse (~4.8us)
-    localparam VID_H_BPORCH  = 'd384; // Back Porch (Ajustado para centrar y completar 780)
-    localparam VID_H_TOTAL   = 'd780; 
-
-    // Vertical: 240 visible, 262 total
-    localparam VID_V_ACTIVE  = 'd240;
-    localparam VID_V_FPORCH  = 'd3;   
-    localparam VID_V_SYNC    = 'd3;   
-    localparam VID_V_BPORCH  = 'd16;  
-    localparam VID_V_TOTAL   = 'd262;
-
-    // Ajuste de los wire visibles (ahora relativos al inicio del área activa)
-    wire [9:0] visible_x = (x_count >= (VID_H_SYNC + VID_H_BPORCH)) ? (x_count - (VID_H_SYNC + VID_H_BPORCH)) : 10'd0;
-    wire [9:0] visible_y = (y_count >= (VID_V_SYNC + VID_V_BPORCH)) ? (y_count - (VID_V_SYNC + VID_V_BPORCH)) : 10'd0;
-
-    always @(posedge clk_core_12288 or negedge reset_n) begin
-        if(~reset_n) begin
+        // x and y counters
+        x_count <= x_count + 1'b1;
+        if(x_count == VID_H_TOTAL-1) begin
             x_count <= 0;
-            y_count <= 0;
-            vidout_rgb <= 0;
-            vidout_de <= 0;
-            vidout_vs <= 1; // Syncs en CRT suelen ser activos en bajo (idle en 1)
-            vidout_hs <= 1;
-        end else begin
-            // Contadores
-            if(x_count == VID_H_TOTAL - 1) begin
-                x_count <= 0;
-                if(y_count == VID_V_TOTAL - 1) begin
-                    y_count <= 0;
-                    frame_count <= frame_count + 1'b1;
-                end else begin
-                    y_count <= y_count + 1'b1;
-                end
-            end else begin
-                x_count <= x_count + 1'b1;
+
+            y_count <= y_count + 1'b1;
+            if(y_count == VID_V_TOTAL-1) begin
+                y_count <= 0;
             end
+        end
 
-            // --- Generación de Sincronismos (Activos en BAJO para CRT estándar) ---
-            
-            // HSYNC: Píxel 0 hasta VID_H_SYNC
-            vidout_hs <= (x_count < VID_H_SYNC) ? 0 : 1;
+        // generate sync
+        if(x_count == 0 && y_count == 0) begin
+            // sync signal in back porch
+            // new frame
+            vidout_vs <= 1;
+            frame_count <= frame_count + 1'b1;
+        end
 
-            // VSYNC: Línea 0 hasta VID_V_SYNC
-            vidout_vs <= (y_count < VID_V_SYNC) ? 0 : 1;
+        // we want HS to occur a bit after VS, not on the same cycle
+        if(x_count == 3) begin
+            // sync signal in back porch
+            // new line
+            vidout_hs <= 1;
+        end
 
-            // --- Generación de Video y Data Enable (DE) ---
-            // El área activa comienza después del Sync + Back Porch
-            if ((x_count >= (VID_H_SYNC + VID_H_BPORCH)) && (x_count < (VID_H_SYNC + VID_H_BPORCH + VID_H_ACTIVE)) &&
-                (y_count >= (VID_V_SYNC + VID_V_BPORCH)) && (y_count < (VID_V_SYNC + VID_V_BPORCH + VID_V_ACTIVE))) 
-            begin
+        // inactive screen areas are black
+        vidout_rgb <= 24'h0;
+        // generate active video
+        if(x_count >= VID_H_BPORCH && x_count < VID_H_ACTIVE+VID_H_BPORCH) begin
+
+            if(y_count >= VID_V_BPORCH && y_count < VID_V_ACTIVE+VID_V_BPORCH) begin
+                // data enable. this is the active region of the line
                 vidout_de <= 1;
-                
-                // Lógica de color original
+
+                // Display mode: 0=terminal overlay, 1=framebuffer only
                 if (display_mode) begin
+                    // Framebuffer only mode
                     vidout_rgb <= framebuffer_pixel_color;
                 end else begin
+                    // Terminal overlay mode - white text overlays framebuffer
                     if (terminal_pixel_color == 24'hFFFFFF)
                         vidout_rgb <= terminal_pixel_color;
                     else
                         vidout_rgb <= framebuffer_pixel_color;
                 end
-            end else begin
-                vidout_de <= 0;
-                vidout_rgb <= 24'h000000; // Importante: Negro total fuera del área activa
             end
         end
     end
-
-wire [5:0] crt_r, crt_g, crt_b;
-	assign crt_r = vidout_rgb[23:18];
-	assign crt_g = vidout_rgb[15:10];
-	assign crt_b = vidout_rgb[7:2];
-
-
- //Analogizer support for RGBS output
- 	//BK3
- 	assign cart_tran_bank3         = {crt_r[5:0],~^{vidout_hs, vidout_vs},1'b1};                          //on reset state set ouput value to 8'hZ
- 	assign cart_tran_bank3_dir     = 1'b1;                                     //on reset state set pin dir to input
- 	//BK2
- 	assign cart_tran_bank2         = {crt_b[0],~(vidout_de),crt_g[5:0]};                          //on reset state set ouput value to 8'hZ
- 	assign cart_tran_bank2_dir     =  1'b1;                                     //on reset state set pin dir to input
- 	//BK1
- 	assign cart_tran_bank1         =  {2'b00,clk_core_12288,crt_b[5:1]};      //on reset state set ouput value to 8'hZ
- 	assign cart_tran_bank1_dir     =  1'b1;                                     //on reset state set pin dir to input
- 	//PIN30
+end
 
 
 
@@ -1535,7 +1450,7 @@ wire [5:0] crt_r, crt_g, crt_b;
 // Link MMIO peripheral (FIFO + synchronous SCK/SO/SI PHY)
 //
 link_mmio #(
-    .CLK_HZ(110000000),
+    .CLK_HZ(100000000),
     .SCK_HZ(256000),
     .POLL_HZ(3000),
     .FIFO_DEPTH(256)
@@ -1585,9 +1500,9 @@ audio_output audio_out (
 
     wire    clk_core_12288;
     wire    clk_core_12288_90deg;
-    wire    clk_cpu;            // CPU clock (100 MHz)
-    wire    clk_ram_controller; // 100 MHz SDRAM controller clock
-    wire    clk_ram_chip;       // 100 MHz SDRAM chip clock (phase shifted)
+    wire    clk_cpu;            // CPU clock (95 MHz)
+    wire    clk_ram_controller; // 95 MHz SDRAM controller clock
+    wire    clk_ram_chip;       // 95 MHz SDRAM chip clock (phase shifted)
 
     wire    pll_core_locked;
     wire    pll_ram_locked;
@@ -1612,8 +1527,8 @@ mf_pllbase mp1 (
 mf_pllram_133 mp_ram (
     .refclk         ( clk_74a ),
     .rst            ( 0 ),
-    .outclk_0       ( clk_ram_controller ), // 100 MHz for SDRAM controller
-    .outclk_1       ( clk_ram_chip ),       // 100 MHz for SDRAM chip (phase shifted)
+    .outclk_0       ( clk_ram_controller ), // 95 MHz for SDRAM controller
+    .outclk_1       ( clk_ram_chip ),       // 95 MHz for SDRAM chip (phase shifted)
     .locked         ( pll_ram_locked )
 );
 
