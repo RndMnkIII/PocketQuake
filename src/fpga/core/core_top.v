@@ -234,21 +234,80 @@ assign port_ir_rx_disable = 1;
 // Set to 1 for little-endian (RISC-V native format)
 assign bridge_endian_little = 1;
 
-// cart is unused, so set all level translators accordingly
-// directions are 0:IN, 1:OUT
-assign cart_tran_bank3 = 8'hzz;
-assign cart_tran_bank3_dir = 1'b0;
-assign cart_tran_bank2 = 8'hzz;
-assign cart_tran_bank2_dir = 1'b0;
-assign cart_tran_bank1 = 8'hzz;
-assign cart_tran_bank1_dir = 1'b0;
-assign cart_tran_bank0 = 4'hf;
-assign cart_tran_bank0_dir = 1'b1;
-assign cart_tran_pin30 = 1'b0;      // reset or cs2, we let the hw control it by itself
-assign cart_tran_pin30_dir = 1'bz;
-assign cart_pin30_pwroff_reset = 1'b0;  // hardware can control this
-assign cart_tran_pin31 = 1'bz;      // input
-assign cart_tran_pin31_dir = 1'b0;  // input
+// ============================================================
+// Analogizer adapter (optional, directly controls cart port)
+// ============================================================
+// Interact variable: SNAC adapter type (bridge address 0xF0000000)
+reg [31:0] analogizer_snac_type;
+wire [15:0] snac_p1_btn;
+wire [31:0] snac_p1_joy;
+wire [15:0] snac_p2_btn;
+wire [31:0] snac_p2_joy;
+wire [15:0] snac_p3_btn;
+wire [15:0] snac_p4_btn;
+
+// Directly pass analog_video_type=0 (ACCENT_ACCENT=ACCENT_ACCENT) to disable video output (SNAC only for now)
+// Video output through the Analogizer can be wired up later if desired.
+openFPGA_Pocket_Analogizer #(
+    .MASTER_CLK_FREQ(50_000_000),
+    .LINE_LENGTH(400)
+) analogizer (
+    .i_clk(clk_74a),
+    .i_rst(~reset_n),
+    .i_ena(1'b1),
+    // Video interface (active but directly from our pipeline)
+    .video_clk(clk_core_12288),
+    .analog_video_type(4'h0),       // 0 = no analog video output
+    .R(vidout_rgb[23:16]),
+    .G(vidout_rgb[15:8]),
+    .B(vidout_rgb[7:0]),
+    .Hblank(~vidout_de),
+    .Vblank(vidout_vs),
+    .BLANKn(vidout_de),
+    .Hsync(vidout_hs),
+    .Vsync(vidout_vs),
+    .Csync(~(vidout_hs ^ vidout_vs)),
+    // Y/C encoder (unused)
+    .CHROMA_PHASE_INC(40'd0),
+    .PALFLAG(1'b0),
+    // Scandoubler (unused)
+    .ce_pix(1'b1),
+    .scandoubler(1'b0),
+    .fx(3'd0),
+    // SNAC controller interface
+    .conf_AB(analogizer_snac_type[5]),
+    .game_cont_type(analogizer_snac_type[4:0]),
+    .p1_btn_state(snac_p1_btn),
+    .p1_joy_state(snac_p1_joy),
+    .p2_btn_state(snac_p2_btn),
+    .p2_joy_state(snac_p2_joy),
+    .p3_btn_state(snac_p3_btn),
+    .p4_btn_state(snac_p4_btn),
+    // Rumble (unused)
+    .i_VIB_SW1(2'b0),
+    .i_VIB_DAT1(8'h0),
+    .i_VIB_SW2(2'b0),
+    .i_VIB_DAT2(8'h0),
+    // Status
+    .busy(),
+    // Cartridge port (directly driven by Analogizer)
+    .cart_tran_bank2(cart_tran_bank2),
+    .cart_tran_bank2_dir(cart_tran_bank2_dir),
+    .cart_tran_bank3(cart_tran_bank3),
+    .cart_tran_bank3_dir(cart_tran_bank3_dir),
+    .cart_tran_bank1(cart_tran_bank1),
+    .cart_tran_bank1_dir(cart_tran_bank1_dir),
+    .cart_tran_bank0(cart_tran_bank0),
+    .cart_tran_bank0_dir(cart_tran_bank0_dir),
+    .cart_tran_pin30(cart_tran_pin30),
+    .cart_tran_pin30_dir(cart_tran_pin30_dir),
+    .cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
+    .cart_tran_pin31(cart_tran_pin31),
+    .cart_tran_pin31_dir(cart_tran_pin31_dir),
+    // Debug
+    .DBG_TX(),
+    .o_stb()
+);
 
 // Link port directions/data are driven by link_mmio below.
 assign port_tran_si = 1'bz;
@@ -708,10 +767,29 @@ always @(*) begin
         // SDRAM mapped at 0x00000000 - 0x03FFFFFF (64MB)
         bridge_rd_data <= bridge_rd_data_captured;
     end
+    32'hF0xxxxxx: begin
+        // Interact variables (settings from APF menu)
+        case (bridge_addr[3:0])
+            4'h0: bridge_rd_data <= analogizer_snac_type;
+            default: bridge_rd_data <= 32'h0;
+        endcase
+    end
     32'hF8xxxxxx: begin
         bridge_rd_data <= cmd_bridge_rd_data;
     end
     endcase
+end
+
+// Interact variable writes (SNAC adapter type from APF menu)
+always @(posedge clk_74a or negedge reset_n) begin
+    if (~reset_n) begin
+        analogizer_snac_type <= 32'h0;  // default: disabled
+    end else if (bridge_wr && bridge_addr[31:24] == 8'hF0) begin
+        case (bridge_addr[3:0])
+            4'h0: analogizer_snac_type <= bridge_wr_data;
+            default: ;
+        endcase
+    end
 end
 
 // ============================================================
@@ -1454,6 +1532,18 @@ assign video_hs = vidout_hs;
         .cont2_key(cont2_key),
         .cont2_joy(cont2_joy),
         .cont2_trig(cont2_trig),
+        // Analogizer SNAC controller data
+        .snac1_btn(snac_p1_btn),
+        .snac1_joy(snac_p1_joy),
+        .snac2_btn(snac_p2_btn),
+        .snac2_joy(snac_p2_joy),
+        // Dock keyboard (cont3) and mouse (cont4)
+        .cont3_key(cont3_key),
+        .cont3_joy(cont3_joy),
+        .cont3_trig(cont3_trig),
+        .cont4_key(cont4_key),
+        .cont4_joy(cont4_joy),
+        .cont4_trig(cont4_trig),
         .target_dataslot_ack(target_dataslot_ack),
         .target_dataslot_done(target_dataslot_done_safe),
         .target_dataslot_err(target_dataslot_err),

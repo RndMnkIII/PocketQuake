@@ -1,7 +1,32 @@
 {
     "interact": {
         "magic": "APF_VER_1",
-        "variables": [],
+        "variables": [
+            {
+                "name": "Analogizer",
+                "id": 0,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "address": "0xF0000000",
+                "defaultval": "0x00",
+                "options": [
+                    {"value": "0x00", "name": "Off"},
+                    {"value": "0x01", "name": "DB15 (Neo Geo)"},
+                    {"value": "0x09", "name": "DB15 Fast"},
+                    {"value": "0x02", "name": "NES"},
+                    {"value": "0x03", "name": "SNES"},
+                    {"value": "0x0B", "name": "SNES (A,B<>X,Y)"},
+                    {"value": "0x04", "name": "PCEngine 2btn"},
+                    {"value": "0x05", "name": "PCEngine 6btn"},
+                    {"value": "0x06", "name": "PCEngine Multitap"},
+                    {"value": "0x10", "name": "PSX Digital"},
+                    {"value": "0x11", "name": "PSX Digital Fast"},
+                    {"value": "0x12", "name": "PSX DualShock"},
+                    {"value": "0x13", "name": "PSX DualShock Fast"}
+                ]
+            }
+        ],
         "messages": []
     }
 }

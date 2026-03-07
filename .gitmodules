@@ -1,0 +1,3 @@
+[submodule "src/fpga/analogizer"]
+	path = src/fpga/analogizer
+	url = https://github.com/RndMnkIII/Analogizer.git

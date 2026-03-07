@@ -10,6 +10,33 @@
                         "name": "Controller"
                     }
                 ]
+            },
+            {
+                "type": "default",
+                "mappings": [
+                    {
+                        "id": 0,
+                        "name": "Controller"
+                    }
+                ]
+            },
+            {
+                "type": "default",
+                "mappings": [
+                    {
+                        "id": 0,
+                        "name": "Keyboard"
+                    }
+                ]
+            },
+            {
+                "type": "default",
+                "mappings": [
+                    {
+                        "id": 0,
+                        "name": "Mouse"
+                    }
+                ]
             }
         ]
     }
