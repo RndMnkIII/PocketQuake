@@ -774,4 +774,5 @@ set_global_assignment -name VERILOG_FILE core/span_rasterizer.v
 set_global_assignment -name VERILOG_FILE core/alias_transform_mac.v
 set_global_assignment -name VERILOG_FILE core/audio_output.v
 set_global_assignment -name VERILOG_FILE core/link_mmio.v
+set_global_assignment -name QIP_FILE analogizer/analogizer/analogizer.qip
 

@@ -2,13 +2,15 @@
     "core": {
         "magic": "APF_VER_1",
         "metadata": {
-            "platform_ids": ["pocketquake"],
+            "platform_ids": [
+                "pocketquake"
+            ],
             "shortname": "PocketQuake",
             "description": "Quake on VexRiscv RISC-V CPU",
             "author": "ThinkElastic",
             "url": "",
-            "version": "1.2.1",
-            "date_release": "2026-02-22"
+            "version": "2.0.0",
+            "date_release": "2026-03-06"
         },
         "framework": {
             "target_product": "Analogue Pocket",

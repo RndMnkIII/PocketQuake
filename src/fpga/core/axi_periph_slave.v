@@ -55,6 +55,18 @@ module axi_periph_slave #(
     input wire [31:0]  cont2_key,
     input wire [31:0]  cont2_joy,
     input wire [15:0]  cont2_trig,
+    // Analogizer SNAC controller inputs
+    input wire [15:0]  snac1_btn,
+    input wire [31:0]  snac1_joy,
+    input wire [15:0]  snac2_btn,
+    input wire [31:0]  snac2_joy,
+    // Dock keyboard (cont3) and mouse (cont4)
+    input wire [31:0]  cont3_key,
+    input wire [31:0]  cont3_joy,
+    input wire [15:0]  cont3_trig,
+    input wire [31:0]  cont4_key,
+    input wire [31:0]  cont4_joy,
+    input wire [15:0]  cont4_trig,
     input wire         target_dataslot_ack,
     input wire         target_dataslot_done,
     input wire [2:0]   target_dataslot_err,
@@ -352,6 +364,26 @@ synch_3 #(.WIDTH(16)) s_cont2_trig(.i(cont2_trig), .o(cont2_trig_s), .clk(clk), 
 synch_3 #(.WIDTH(32)) s_cont1_joy(.i(cont1_joy), .o(cont1_joy_s), .clk(clk), .rise(), .fall());
 synch_3 #(.WIDTH(16)) s_cont1_trig(.i(cont1_trig), .o(cont1_trig_s), .clk(clk), .rise(), .fall());
 
+// Analogizer SNAC controller state (directly in CPU clock domain from Analogizer module)
+wire [15:0] snac1_btn_s;
+wire [31:0] snac1_joy_s;
+wire [15:0] snac2_btn_s;
+wire [31:0] snac2_joy_s;
+synch_3 #(.WIDTH(16)) s_snac1_btn(.i(snac1_btn), .o(snac1_btn_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_snac1_joy(.i(snac1_joy), .o(snac1_joy_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(16)) s_snac2_btn(.i(snac2_btn), .o(snac2_btn_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_snac2_joy(.i(snac2_joy), .o(snac2_joy_s), .clk(clk), .rise(), .fall());
+
+// Dock keyboard (cont3) and mouse (cont4) from APF clock domain
+wire [31:0] cont3_key_s, cont3_joy_s, cont4_key_s, cont4_joy_s;
+wire [15:0] cont3_trig_s, cont4_trig_s;
+synch_3 #(.WIDTH(32)) s_cont3_key(.i(cont3_key), .o(cont3_key_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_cont3_joy(.i(cont3_joy), .o(cont3_joy_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(16)) s_cont3_trig(.i(cont3_trig), .o(cont3_trig_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_cont4_key(.i(cont4_key), .o(cont4_key_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_cont4_joy(.i(cont4_joy), .o(cont4_joy_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(16)) s_cont4_trig(.i(cont4_trig), .o(cont4_trig_s), .clk(clk), .rise(), .fall());
+
 // ============================================
 // System register write logic
 // ============================================
@@ -472,14 +504,18 @@ always @(*) begin
         6'b010111: sysreg_rdata = cont2_key_s;
         6'b011000: sysreg_rdata = cont2_joy_s;
         6'b011001: sysreg_rdata = {16'b0, cont2_trig_s};
-        6'b011100: sysreg_rdata = 32'h0; // 0x70 (perf counters removed)
-        6'b011101: sysreg_rdata = 32'h0; // 0x74
-        6'b011110: sysreg_rdata = 32'h0; // 0x78
-        6'b011111: sysreg_rdata = 32'h0; // 0x7C
-        6'b100000: sysreg_rdata = 32'h0; // 0x80
-        6'b100001: sysreg_rdata = 32'h0; // 0x84
-        6'b100010: sysreg_rdata = 32'h0; // 0x88
-        6'b100011: sysreg_rdata = 32'h0; // 0x8C
+        6'b011010: sysreg_rdata = {16'b0, snac1_btn_s};  // 0x68 SNAC1_BTN
+        6'b011011: sysreg_rdata = snac1_joy_s;            // 0x6C SNAC1_JOY
+        6'b011100: sysreg_rdata = {16'b0, snac2_btn_s};  // 0x70 SNAC2_BTN
+        6'b011101: sysreg_rdata = snac2_joy_s;            // 0x74 SNAC2_JOY
+        // Dock keyboard (cont3): key=modifiers, joy=scancodes, trig=scancodes5-6
+        6'b011110: sysreg_rdata = cont3_key_s;  // 0x78 KB_KEY (modifiers [15:0], type [31:28])
+        6'b011111: sysreg_rdata = cont3_joy_s;  // 0x7C KB_JOY (scancodes 1-4)
+        6'b100000: sysreg_rdata = {16'b0, cont3_trig_s}; // 0x80 KB_TRIG (scancodes 5-6)
+        // Dock mouse (cont4): joy=[buttons,deltaX], key=report_counter, trig=deltaY
+        6'b100001: sysreg_rdata = cont4_key_s;  // 0x84 MOUSE_KEY (report counter [15:0])
+        6'b100010: sysreg_rdata = cont4_joy_s;  // 0x88 MOUSE_JOY (buttons [31:16], deltaX [15:0])
+        6'b100011: sysreg_rdata = {16'b0, cont4_trig_s}; // 0x8C MOUSE_TRIG (deltaY [15:0])
         6'b100100: sysreg_rdata = ENABLE_DEBUG_CTRS ? {dbg_scanline_rd_hit, dbg_scanline_ar_hit} : 32'h0; // 0x90
         6'b100101: sysreg_rdata = ENABLE_DEBUG_CTRS ? dbg_periph_rd_capture : 32'h0; // 0x94
         6'b100110: sysreg_rdata = 32'h0; // 0x98
