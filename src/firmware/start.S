@@ -8,15 +8,17 @@
 .global _start
 
 _start:
+    /* Check if this is a trap (exception re-entry) or cold boot.
+     * On cold boot, mcause is 0. On exception, mcause is non-zero.
+     * CPU jumps to mtvec (address 0) on any exception.
+     * CRITICAL: must check mcause BEFORE touching sp, otherwise the
+     * original sp is destroyed and the trap handler can't restore it. */
+    csrr t0, mcause
+    bnez t0, _trap_entry
+
     /* Cold boot: set up stack pointer */
     lui sp, %hi(_stack_top)
     addi sp, sp, %lo(_stack_top)
-
-    /* Check if this is a trap (exception re-entry) or cold boot.
-     * On cold boot, mcause is 0. On exception, mcause is non-zero.
-     * VexRiscv jumps to mtvec (address 0) on any exception. */
-    csrr t0, mcause
-    bnez t0, _trap_entry
 
     /* Enable FPU: set mstatus.FS = 11 (Dirty) — bits [14:13] */
     li t0, (3 << 13)
@@ -62,8 +64,9 @@ halt:
  * Total: 67 words = 268 bytes (round to 272 for 8-byte alignment)
  * ======================================== */
 _trap_entry:
-    /* We need a safe stack. Use top of BRAM scratch area temporarily.
-     * Save current sp first so we can include it in the frame. */
+    /* Save original sp to mscratch, then switch to BRAM trap stack.
+     * sp still holds the original value here (mcause check above
+     * does not modify sp). */
     csrw mscratch, sp
 
     /* Switch to trap stack in BRAM */
@@ -118,14 +121,6 @@ _trap_entry:
 
     /* Store 0 at x0 position (for completeness) */
     sw zero, 0(sp)
-
-    /* Debug marker: write "T!" to VRAM row 29, cols 8-9
-     * Registers x1,x3 already saved above, safe to reuse */
-    lui x1, 0x20000         /* x1 = 0x20000000 (VRAM base) */
-    li  x3, 0x54            /* x3 = 'T' */
-    sb  x3, 0x490(x1)       /* VRAM[29*40 + 8] = 'T' */
-    li  x3, 0x21            /* x3 = '!' */
-    sb  x3, 0x491(x1)       /* VRAM[29*40 + 9] = '!' */
 
     /* Save f0-f31 (floating-point registers) */
     fsw f0,  140(sp)

@@ -3,58 +3,102 @@
         "magic": "APF_VER_1",
         "data_slots": [
             {
+                "id": 9,
+                "name": "Game",
+                "required": true,
+                "parameters": "0x113",
+                "extensions": [
+                    "json"
+                ]
+            },
+            {
                 "id": 0,
                 "name": "Quake Binary",
-                "required": true,
+                "required": false,
                 "parameters": 0,
                 "extensions": [
                     "bin"
                 ],
-                "filename": "quake.bin",
                 "deferload": true
             },
             {
                 "id": 1,
-                "name": "PAK Data",
-                "required": true,
+                "name": "PAK0",
+                "required": false,
                 "parameters": 0,
                 "extensions": [
                     "pak"
                 ],
-                "filename": "pak0.pak",
                 "deferload": true
             },
             {
                 "id": 2,
-                "name": "PAK1 Data",
+                "name": "PAK1",
                 "required": false,
                 "parameters": 0,
                 "extensions": [
                     "pak"
                 ],
-                "filename": "pak1.pak",
                 "deferload": true
             },
             {
                 "id": 3,
-                "name": "Config",
+                "name": "Mod PAK0",
                 "required": false,
                 "parameters": 0,
                 "extensions": [
-                    "cfg"
+                    "pak"
                 ],
-                "filename": "config.cfg",
                 "deferload": true
             },
             {
                 "id": 4,
-                "name": "Autoexec",
+                "name": "Mod PAK1",
                 "required": false,
                 "parameters": 0,
                 "extensions": [
-                    "cfg"
+                    "pak"
                 ],
-                "filename": "autoexec.cfg",
+                "deferload": true
+            },
+            {
+                "id": 5,
+                "name": "Mod PAK2",
+                "required": false,
+                "parameters": 0,
+                "extensions": [
+                    "pak"
+                ],
+                "deferload": true
+            },
+            {
+                "id": 6,
+                "name": "Mod PAK3",
+                "required": false,
+                "parameters": 0,
+                "extensions": [
+                    "pak"
+                ],
+                "deferload": true
+            },
+            {
+                "id": 7,
+                "name": "Mod PAK4",
+                "required": false,
+                "parameters": 0,
+                "extensions": [
+                    "pak"
+                ],
+                "deferload": true
+            },
+            {
+                "id": 8,
+                "name": "Progs",
+                "required": false,
+                "parameters": 0,
+                "extensions": [
+                    "dat"
+                ],
                 "deferload": true
             },
             {
@@ -259,35 +303,13 @@
             },
             {
                 "id": 30,
-                "name": "Save 10",
-                "required": false,
-                "parameters": "0x84",
-                "nonvolatile": true,
-                "extensions": ["sav"],
-                "filename": "s10.sav",
-                "address": "0x03D40000",
-                "size_maximum": "0x00020000"
-            },
-            {
-                "id": 31,
-                "name": "Save 11",
-                "required": false,
-                "parameters": "0x84",
-                "nonvolatile": true,
-                "extensions": ["sav"],
-                "filename": "s11.sav",
-                "address": "0x03D60000",
-                "size_maximum": "0x00020000"
-            },
-            {
-                "id": 32,
-                "name": "Config",
+                "name": "Config Save",
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
                 "extensions": ["cfg"],
                 "filename": "config.cfg",
-                "address": "0x03D80000",
+                "address": "0x03D40000",
                 "size_maximum": "0x00020000"
             }
         ]

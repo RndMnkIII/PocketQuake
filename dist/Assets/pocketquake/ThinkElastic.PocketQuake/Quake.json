@@ -1,0 +1,19 @@
+{
+    "instance": {
+        "magic": "APF_VER_1",
+        "data_slots": [
+            {
+                "id": 0,
+                "filename": "quake.bin"
+            },
+            {
+                "id": 1,
+                "filename": "pak0.pak"
+            },
+            {
+                "id": 2,
+                "filename": "pak1.pak"
+            }
+        ]
+    }
+}

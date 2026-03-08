@@ -1,0 +1,45 @@
+{
+    "instance": {
+        "magic": "APF_VER_1",
+        "data_slots": [
+            {
+                "id": 0,
+                "filename": "quake.bin"
+            },
+            {
+                "id": 1,
+                "filename": "pak0.pak"
+            },
+            {
+                "id": 2,
+                "filename": "pak1.pak"
+            },
+            {
+                "id": 3,
+                "filename": "XMEN/pak0.pak"
+            },
+            {
+                "id": 4,
+                "filename": "XMEN/pak1.pak"
+            },
+            {
+                "id": 5,
+                "filename": "XMEN/pak2.pak"
+            },
+            {
+                "id": 6,
+                "filename": "XMEN/pak3.pak"
+            },
+            {
+                "id": 8,
+                "filename": "XMEN/progs.dat"
+            }
+        ],
+        "memory_writes": [
+            {"address": "0xF0000010", "data": "0x00000001"},
+            {"address": "0xF0000014", "data": "0x6E656D78"},
+            {"address": "0xF0000018", "data": "0x00000000"},
+            {"address": "0xF000001C", "data": "0x00000000"}
+        ]
+    }
+}

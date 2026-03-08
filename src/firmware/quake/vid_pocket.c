@@ -166,19 +166,78 @@ void VID_WaitSync(void)
 /*
 ================
 D_BeginDirectRect
+
+Draws a small rect directly to the DISPLAY framebuffer (the one being
+scanned out), bypassing the normal draw buffer.  Used for the loading
+disc icon so it's visible immediately during disc IO.
 ================
 */
+static byte direct_save[24 * 24]; /* saved pixels under the disc */
+
 void D_BeginDirectRect(int x, int y, byte *pbitmap, int width, int height)
 {
-    (void)x; (void)y; (void)pbitmap; (void)width; (void)height;
+    unsigned int disp_word_addr;
+    byte *fb;
+    int i, j;
+
+    if (!pbitmap || width <= 0 || height <= 0)
+        return;
+    if (width > 24) width = 24;
+    if (height > 24) height = 24;
+
+    /* Get the DISPLAY framebuffer (the one currently being shown) */
+    disp_word_addr = SYS_FB_DISPLAY & 0x01FFFFFFu;
+    fb = (byte *)(SDRAM_UC_BASE + (disp_word_addr << 1));
+
+    /* Clamp to screen bounds */
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + width > BASEWIDTH) x = BASEWIDTH - width;
+    if (y + height > BASEHEIGHT) y = BASEHEIGHT - height;
+
+    /* Save existing pixels, then blit the icon */
+    for (i = 0; i < height; i++)
+    {
+        byte *row = fb + (y + i) * BASEWIDTH + x;
+        for (j = 0; j < width; j++)
+        {
+            direct_save[i * width + j] = row[j];
+            row[j] = pbitmap[i * width + j];
+        }
+    }
 }
 
 /*
 ================
 D_EndDirectRect
+
+Restores pixels under the disc icon.
 ================
 */
 void D_EndDirectRect(int x, int y, int width, int height)
 {
-    (void)x; (void)y; (void)width; (void)height;
+    unsigned int disp_word_addr;
+    byte *fb;
+    int i, j;
+
+    if (width <= 0 || height <= 0)
+        return;
+    if (width > 24) width = 24;
+    if (height > 24) height = 24;
+
+    disp_word_addr = SYS_FB_DISPLAY & 0x01FFFFFFu;
+    fb = (byte *)(SDRAM_UC_BASE + (disp_word_addr << 1));
+
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + width > BASEWIDTH) x = BASEWIDTH - width;
+    if (y + height > BASEHEIGHT) y = BASEHEIGHT - height;
+
+    /* Restore saved pixels */
+    for (i = 0; i < height; i++)
+    {
+        byte *row = fb + (y + i) * BASEWIDTH + x;
+        for (j = 0; j < width; j++)
+            row[j] = direct_save[i * width + j];
+    }
 }

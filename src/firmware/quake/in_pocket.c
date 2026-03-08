@@ -148,19 +148,15 @@ static unsigned int prev_mouse_report;
 static unsigned int prev_mouse_buttons;
 
 static unsigned int prev_keys = 0;
-static unsigned int prev_raw_key_bits = 0;
 static qboolean key_idle_known = false;
 static unsigned int key_idle_bits = 0;
-static int key_debug_logs = 0;
-static int key_poll_logs = 0;
-static unsigned int key_poll_count = 0;
 static int active_pad = 1;
 static int face_a_down_key = 0;
 static int face_b_down_key = 0;
-static qboolean dpad_up_nav_down = false;
-static qboolean dpad_down_nav_down = false;
-static qboolean dpad_up_game_down = false;
-static qboolean dpad_down_game_down = false;
+static int face_x_down_key = 0;
+static int face_y_down_key = 0;
+static int dpad_left_down_key = 0;
+static int dpad_right_down_key = 0;
 
 
 static unsigned int normalize_keys(unsigned int raw_keys)
@@ -211,9 +207,6 @@ static void refresh_active_pad(void)
         raw_keys = (active_pad == 1) ? k1 : k2;
         key_idle_known = false;
         prev_keys = normalize_keys(raw_keys);
-        prev_raw_key_bits = raw_keys & KEY_MASK;
-        if (0) Con_Printf("IN switch CONT%d (c1 k=%08x j=%08x c2 k=%08x j=%08x)\n",
-                          active_pad, k1, j1, k2, j2);
     }
 }
 
@@ -224,10 +217,8 @@ typedef struct {
 } keymap_t;
 
 static const keymap_t keymap[] = {
-    { KEY_DPAD_LEFT,   K_LEFTARROW },  /* Turn left */
-    { KEY_DPAD_RIGHT,  K_RIGHTARROW }, /* Turn right */
-    { KEY_FACE_X,      K_UPARROW },    /* Move forward (top) */
-    { KEY_FACE_Y,      ',' },          /* Strafe left (left) */
+    { KEY_DPAD_UP,     K_UPARROW },    /* Move forward / menu up */
+    { KEY_DPAD_DOWN,   K_DOWNARROW },  /* Move backward / menu down */
     { KEY_TRIG_L1,     K_SPACE },      /* Jump (left shoulder) */
     { KEY_TRIG_R1,     K_CTRL },       /* Fire (right shoulder) */
     { KEY_SELECT,      '/' },          /* Change weapon (left of Analogue) */
@@ -249,25 +240,18 @@ void IN_Init(void)
     raw_keys = (active_pad == 1) ? c1k : c2k;
     key_idle_known = false;
     prev_keys = normalize_keys(raw_keys);
-    prev_raw_key_bits = raw_keys & KEY_MASK;
-    key_debug_logs = 0;
-    key_poll_logs = 0;
-    key_poll_count = 0;
     face_a_down_key = 0;
     face_b_down_key = 0;
-    dpad_up_nav_down = false;
-    dpad_down_nav_down = false;
-    dpad_up_game_down = false;
-    dpad_down_game_down = false;
+    face_x_down_key = 0;
+    face_y_down_key = 0;
+    dpad_left_down_key = 0;
+    dpad_right_down_key = 0;
     /* Initialize keyboard/mouse state */
     for (int i = 0; i < MAX_HID_KEYS; i++)
         prev_hid_scancodes[i] = 0;
     prev_hid_mods = 0;
     prev_mouse_report = 0;
     prev_mouse_buttons = 0;
-    if (0) Con_Printf("IN init CONT%d c1(k=%08x j=%08x) c2(k=%08x j=%08x) raw=%08x norm=%08x active_%s\n",
-                      active_pad, c1k, c1j, c2k, c2j, raw_keys, prev_keys,
-                      "calibrated");
 }
 
 void IN_Shutdown(void)
@@ -330,8 +314,7 @@ void IN_Move(usercmd_t *cmd)
     cmd->forwardmove += lstick_y * cl_forwardspeed.value / 128.0f;
     cmd->sidemove += lstick_x * cl_sidespeed.value / 128.0f;
 
-    /* D-pad is look (handled via key events in IN_SendKeyEvents).
-     * L2/R2 analog triggers for strafe if available. */
+    /* L2/R2 analog triggers for strafe if available */
     if (key_dest == key_game) {
         if (keys & KEY_TRIG_L2)   cmd->sidemove -= cl_sidespeed.value;
         if (keys & KEY_TRIG_R2)   cmd->sidemove += cl_sidespeed.value;
@@ -360,111 +343,103 @@ void IN_Move(usercmd_t *cmd)
 void IN_SendKeyEvents(void)
 {
     unsigned int raw_keys;
-    unsigned int joy;
     unsigned int keys;
     unsigned int changed;
-    unsigned int raw_key_bits;
     qboolean nav_context;
-    qboolean up_down;
-    qboolean down_down;
     const keymap_t *km;
 
     refresh_active_pad();
     raw_keys = (active_pad == 1) ? CONT1_KEY : CONT2_KEY;
-    joy = (active_pad == 1) ? CONT1_JOY : CONT2_JOY;
 
     /* Merge SNAC buttons (remapped to Pocket convention) */
     raw_keys |= snac_to_pocket_buttons(SNAC1_BTN);
 
     keys = normalize_keys(raw_keys);
     changed = keys ^ prev_keys;
-    raw_key_bits = raw_keys & KEY_MASK;
 
-    key_poll_count++;
-    if ((key_poll_count & 127u) == 0u && key_poll_logs < 16) {
-        if (0) Con_Printf("IN poll CONT%d raw=%08x norm=%08x joy=%08x c1(k=%08x j=%08x) c2(k=%08x j=%08x)\n",
-                   active_pad, raw_keys, keys, joy, CONT1_KEY, CONT1_JOY, CONT2_KEY, CONT2_JOY);
-        key_poll_logs++;
-    }
-
-    if (raw_key_bits != prev_raw_key_bits && key_debug_logs < 24) {
-        if (0) Con_Printf("IN raw CONT%d=%08x norm=%08x joy=%08x\n", active_pad, raw_keys, keys, joy);
-        key_debug_logs++;
-        prev_raw_key_bits = raw_key_bits;
-    }
-
-    /* D-pad up/down: menu = K_UPARROW/K_DOWNARROW, game = 'a'/'z' (look up/down) */
+    /* Context-sensitive buttons: different Quake key depending on menu vs game.
+     * Each tracks which key was sent on press, so the correct key is released. */
     nav_context = (key_dest == key_menu) || (key_dest == key_console);
-    up_down = (keys & KEY_DPAD_UP) ? true : false;
-    down_down = (keys & KEY_DPAD_DOWN) ? true : false;
 
-    if (nav_context) {
-        /* Release game-mode look keys when entering menus */
-        if (dpad_up_game_down) { Key_Event('a', false); dpad_up_game_down = false; }
-        if (dpad_down_game_down) { Key_Event('z', false); dpad_down_game_down = false; }
-
-        if (up_down && !dpad_up_nav_down) {
-            Key_Event(K_UPARROW, true);
-            dpad_up_nav_down = true;
-        } else if (!up_down && dpad_up_nav_down) {
-            Key_Event(K_UPARROW, false);
-            dpad_up_nav_down = false;
-        }
-
-        if (down_down && !dpad_down_nav_down) {
-            Key_Event(K_DOWNARROW, true);
-            dpad_down_nav_down = true;
-        } else if (!down_down && dpad_down_nav_down) {
-            Key_Event(K_DOWNARROW, false);
-            dpad_down_nav_down = false;
-        }
-    } else {
-        /* Release nav keys when entering game */
-        if (dpad_up_nav_down) { Key_Event(K_UPARROW, false); dpad_up_nav_down = false; }
-        if (dpad_down_nav_down) { Key_Event(K_DOWNARROW, false); dpad_down_nav_down = false; }
-
-        if (up_down && !dpad_up_game_down) {
-            Key_Event('a', true);
-            dpad_up_game_down = true;
-        } else if (!up_down && dpad_up_game_down) {
-            Key_Event('a', false);
-            dpad_up_game_down = false;
-        }
-
-        if (down_down && !dpad_down_game_down) {
-            Key_Event('z', true);
-            dpad_down_game_down = true;
-        } else if (!down_down && dpad_down_game_down) {
-            Key_Event('z', false);
-            dpad_down_game_down = false;
-        }
-    }
-
-    /* Face A (right): menu = K_ENTER, game = strafe right */
-    if (changed & KEY_FACE_A) {
-        qboolean down = (keys & KEY_FACE_A) ? true : false;
+    /* D-pad Left: menu = K_LEFTARROW, game = ',' (strafe left) */
+    if (changed & KEY_DPAD_LEFT) {
+        qboolean down = (keys & KEY_DPAD_LEFT) ? true : false;
         if (down) {
-            face_a_down_key = (key_dest == key_menu) ? K_ENTER : '.';
-            Key_Event(face_a_down_key, true);
+            dpad_left_down_key = nav_context ? K_LEFTARROW : ',';
+            Key_Event(dpad_left_down_key, true);
         } else {
-            if (face_a_down_key == 0)
-                face_a_down_key = (key_dest == key_menu) ? K_ENTER : '.';
-            Key_Event(face_a_down_key, false);
-            face_a_down_key = 0;
+            if (dpad_left_down_key == 0)
+                dpad_left_down_key = nav_context ? K_LEFTARROW : ',';
+            Key_Event(dpad_left_down_key, false);
+            dpad_left_down_key = 0;
         }
     }
 
-    /* Face B (bottom): menu = K_ENTER, game = walk backward */
+    /* D-pad Right: menu = K_RIGHTARROW, game = '.' (strafe right) */
+    if (changed & KEY_DPAD_RIGHT) {
+        qboolean down = (keys & KEY_DPAD_RIGHT) ? true : false;
+        if (down) {
+            dpad_right_down_key = nav_context ? K_RIGHTARROW : '.';
+            Key_Event(dpad_right_down_key, true);
+        } else {
+            if (dpad_right_down_key == 0)
+                dpad_right_down_key = nav_context ? K_RIGHTARROW : '.';
+            Key_Event(dpad_right_down_key, false);
+            dpad_right_down_key = 0;
+        }
+    }
+
+    /* Face X / Triangle (top): game = 'a' (look up) */
+    if (changed & KEY_FACE_X) {
+        qboolean down = (keys & KEY_FACE_X) ? true : false;
+        if (down) {
+            face_x_down_key = 'a';
+            Key_Event(face_x_down_key, true);
+        } else {
+            if (face_x_down_key == 0) face_x_down_key = 'a';
+            Key_Event(face_x_down_key, false);
+            face_x_down_key = 0;
+        }
+    }
+
+    /* Face B / Cross (bottom): menu = K_ENTER, game = 'z' (look down) */
     if (changed & KEY_FACE_B) {
         qboolean down = (keys & KEY_FACE_B) ? true : false;
         if (down) {
-            face_b_down_key = (key_dest == key_menu) ? K_ENTER : K_DOWNARROW;
+            face_b_down_key = nav_context ? K_ENTER : 'z';
             Key_Event(face_b_down_key, true);
         } else {
             if (face_b_down_key == 0)
-                face_b_down_key = (key_dest == key_menu) ? K_ENTER : K_DOWNARROW;
+                face_b_down_key = nav_context ? K_ENTER : 'z';
             Key_Event(face_b_down_key, false);
             face_b_down_key = 0;
+        }
+    }
+
+    /* Face Y / Square (left): game = K_LEFTARROW (turn left) */
+    if (changed & KEY_FACE_Y) {
+        qboolean down = (keys & KEY_FACE_Y) ? true : false;
+        if (down) {
+            face_y_down_key = K_LEFTARROW;
+            Key_Event(face_y_down_key, true);
+        } else {
+            if (face_y_down_key == 0) face_y_down_key = K_LEFTARROW;
+            Key_Event(face_y_down_key, false);
+            face_y_down_key = 0;
+        }
+    }
+
+    /* Face A / Circle (right): menu = K_ENTER, game = K_RIGHTARROW (turn right) */
+    if (changed & KEY_FACE_A) {
+        qboolean down = (keys & KEY_FACE_A) ? true : false;
+        if (down) {
+            face_a_down_key = nav_context ? K_ENTER : K_RIGHTARROW;
+            Key_Event(face_a_down_key, true);
+        } else {
+            if (face_a_down_key == 0)
+                face_a_down_key = nav_context ? K_ENTER : K_RIGHTARROW;
+            Key_Event(face_a_down_key, false);
+            face_a_down_key = 0;
         }
     }
 

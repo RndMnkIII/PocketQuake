@@ -271,6 +271,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 {
 	unsigned *buf;
 	byte	stackbuf[1024];		// avoid dirtying the cache heap
+
 	pq_dbg_stage = 0x4000;
 	pq_dbg_info = Mod_NameTag(mod ? mod->name : NULL);
 
@@ -295,14 +296,12 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 //
 // load the file
 //
-	if (0) Sys_Printf ("Mod_Load: %s\n", mod->name);
 	buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 	pq_dbg_stage = 0x4001;
 	if (!buf)
 	{
-		if (0) Sys_Printf ("Mod_Load: FAIL %s not found\n", mod->name);
 		if (crash)
-			Sys_Error ("Mod_NumForName: %s not found", mod->name);
+			Host_Error ("Mod_ForName: %s not found", mod->name);
 		return NULL;
 	}
 	
@@ -323,28 +322,24 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	switch (LittleLong(*(unsigned *)buf))
 	{
 	case IDPOLYHEADER:
-		if (0) Sys_Printf ("Mod_Load: alias %s\n", mod->name);
 		pq_dbg_stage = 0x4010;
 		Mod_LoadAliasModel (mod, buf);
 		pq_dbg_stage = 0x4011;
 		break;
 
 	case IDSPRITEHEADER:
-		if (0) Sys_Printf ("Mod_Load: sprite %s\n", mod->name);
 		pq_dbg_stage = 0x4020;
 		Mod_LoadSpriteModel (mod, buf);
 		pq_dbg_stage = 0x4021;
 		break;
 
 	default:
-		if (0) Sys_Printf ("Mod_Load: brush %s\n", mod->name);
 		pq_dbg_stage = 0x4030;
 		Mod_LoadBrushModel (mod, buf);
 		pq_dbg_stage = 0x4031;
 		break;
 	}
 
-	if (0) Sys_Printf ("Mod_Load: OK %s\n", mod->name);
 	pq_dbg_stage = 0x40FF;
 	return mod;
 }

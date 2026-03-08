@@ -823,16 +823,28 @@ always @(*) begin
     endcase
 end
 
-// Interact variable writes (SNAC adapter type from APF menu)
+// Interact variable writes (SNAC adapter type + game mode from APF menu/instance)
+// memory_writes must use 0xF0xxxxxx addresses (bridge clk_74a domain, not SDRAM path).
+// NeoGeo core uses the same pattern for per-game configuration.
+reg [31:0] game_mode_reg;     // 0xF0000010: 0=base, 1=game, 2=hipnotic, 3=rogue
+reg [31:0] game_name_0_reg;   // 0xF0000014: mod name bytes 0-3
+reg [31:0] game_name_1_reg;   // 0xF0000018: mod name bytes 4-7
+reg [31:0] game_name_2_reg;   // 0xF000001C: mod name bytes 8-11
+
+// Byte-swap bridge data for game mode regs: APF memory_writes are big-endian
+wire [31:0] bridge_wr_data_le = {bridge_wr_data[7:0], bridge_wr_data[15:8],
+                                  bridge_wr_data[23:16], bridge_wr_data[31:24]};
+
 always @(posedge clk_74a) begin
-	if (bridge_wr) begin
-      casex (bridge_addr)
-        32'hF7000000: analogizer_settings <= {
-        bridge_wr_data[7:0], 
-        bridge_wr_data[15:8], 
-        bridge_wr_data[23:16], 
-        bridge_wr_data[31:24]};
-      endcase
+    if (bridge_wr && bridge_addr[31:24] == 8'hF0) begin
+        case (bridge_addr[7:0])
+            8'h00: analogizer_snac_type <= bridge_wr_data;
+            8'h10: game_mode_reg   <= bridge_wr_data_le;
+            8'h14: game_name_0_reg <= bridge_wr_data_le;
+            8'h18: game_name_1_reg <= bridge_wr_data_le;
+            8'h1C: game_name_2_reg <= bridge_wr_data_le;
+            default: ;
+        endcase
     end
 end
 
@@ -1586,6 +1598,10 @@ assign video_hs = vidout_hs;
         .cont4_key(cont4_key),
         .cont4_joy(cont4_joy),
         .cont4_trig(cont4_trig),
+        .game_mode(game_mode_reg),
+        .game_name_0(game_name_0_reg),
+        .game_name_1(game_name_1_reg),
+        .game_name_2(game_name_2_reg),
         .target_dataslot_ack(target_dataslot_ack),
         .target_dataslot_done(target_dataslot_done_safe),
         .target_dataslot_err(target_dataslot_err),

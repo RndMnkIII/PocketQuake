@@ -67,6 +67,11 @@ module axi_periph_slave #(
     input wire [31:0]  cont4_key,
     input wire [31:0]  cont4_joy,
     input wire [15:0]  cont4_trig,
+    // Game mode from instance memory_writes (clk_74a domain)
+    input wire [31:0]  game_mode,
+    input wire [31:0]  game_name_0,
+    input wire [31:0]  game_name_1,
+    input wire [31:0]  game_name_2,
     input wire         target_dataslot_ack,
     input wire         target_dataslot_done,
     input wire [2:0]   target_dataslot_err,
@@ -384,6 +389,13 @@ synch_3 #(.WIDTH(32)) s_cont4_key(.i(cont4_key), .o(cont4_key_s), .clk(clk), .ri
 synch_3 #(.WIDTH(32)) s_cont4_joy(.i(cont4_joy), .o(cont4_joy_s), .clk(clk), .rise(), .fall());
 synch_3 #(.WIDTH(16)) s_cont4_trig(.i(cont4_trig), .o(cont4_trig_s), .clk(clk), .rise(), .fall());
 
+// Game mode registers from bridge clk_74a domain
+wire [31:0] game_mode_s, game_name_0_s, game_name_1_s, game_name_2_s;
+synch_3 #(.WIDTH(32)) s_game_mode(.i(game_mode), .o(game_mode_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_game_name_0(.i(game_name_0), .o(game_name_0_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_game_name_1(.i(game_name_1), .o(game_name_1_s), .clk(clk), .rise(), .fall());
+synch_3 #(.WIDTH(32)) s_game_name_2(.i(game_name_2), .o(game_name_2_s), .clk(clk), .rise(), .fall());
+
 // ============================================
 // System register write logic
 // ============================================
@@ -518,8 +530,10 @@ always @(*) begin
         6'b100011: sysreg_rdata = {16'b0, cont4_trig_s}; // 0x8C MOUSE_TRIG (deltaY [15:0])
         6'b100100: sysreg_rdata = ENABLE_DEBUG_CTRS ? {dbg_scanline_rd_hit, dbg_scanline_ar_hit} : 32'h0; // 0x90
         6'b100101: sysreg_rdata = ENABLE_DEBUG_CTRS ? dbg_periph_rd_capture : 32'h0; // 0x94
-        6'b100110: sysreg_rdata = 32'h0; // 0x98
-        6'b100111: sysreg_rdata = 32'h0; // 0x9C
+        6'b100110: sysreg_rdata = game_mode_s;    // 0x98 GAME_MODE
+        6'b100111: sysreg_rdata = game_name_0_s;  // 0x9C GAME_NAME[0:3]
+        6'b101000: sysreg_rdata = game_name_1_s;  // 0xA0 GAME_NAME[4:7]
+        6'b101001: sysreg_rdata = game_name_2_s;  // 0xA4 GAME_NAME[8:11]
         default: sysreg_rdata = 32'h0;
     endcase
 end

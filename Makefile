@@ -55,7 +55,7 @@ firmware:
 	@echo "Firmware build complete"
 
 # Package release (uses existing bitstream)
-package: $(REVERSE_BITS) check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon install-txt
+package: $(REVERSE_BITS) check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon copy-instances install-txt
 	@echo ""
 	@echo "Build complete!"
 	@echo "Release package: $(OUTPUT_DIR)/"
@@ -105,6 +105,11 @@ copy-platform:
 	@echo "Copying platform files..."
 	@cp dist/platforms/*.json $(RELEASE_PLATFORMS_DIR)/
 	@cp dist/platforms/_images/*.bin $(RELEASE_PLATFORMS_DIR)/_images/
+
+# Copy instance JSON files (game selector)
+copy-instances:
+	@echo "Copying instance files..."
+	@cp -r dist/Assets/ $(OUTPUT_DIR)/
 
 # Copy core icon if it exists
 copy-icon:
@@ -214,4 +219,4 @@ program: firmware-mif
 	@echo "Programming FPGA via JTAG..."
 	$(MAKE) -C $(FPGA_DIR) program
 
-.PHONY: all full fpga firmware-mif firmware firmware-update fw package check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon install-txt clean clean-fpga-cache clean-fpga quick program
+.PHONY: all full fpga firmware-mif firmware firmware-update fw package check-bitstream release-dirs copy-bitstream copy-firmware copy-json copy-platform copy-icon copy-instances install-txt clean clean-fpga-cache clean-fpga quick program

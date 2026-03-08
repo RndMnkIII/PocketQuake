@@ -234,7 +234,8 @@ setmodel(entity, model)
 void PF_setmodel (void)
 {
 	edict_t	*e;
-	char	*m, **check;
+	const char	*m;
+	char	**check;
 	model_t	*mod;
 	int		i;
 
@@ -245,16 +246,27 @@ void PF_setmodel (void)
 	for (i=0, check = sv.model_precache ; *check ; i++, check++)
 		if (!strcmp(*check, m))
 			break;
-			
+
 	if (!*check)
-		PR_RunError ("no precache: %s\n", m);
-		
+	{
+		//QuakeSpasm: warn and auto-precache instead of crashing
+		Con_Printf ("PF_setmodel: no precache for %s\n", m);
+		if (i < MAX_MODELS)
+		{
+			sv.model_precache[i] = m;
+			sv.models[i] = Mod_ForName (m, false);
+		}
+		else
+		{
+			PR_RunError ("no precache: %s\n", m);
+		}
+	}
 
-	e->v.model = m - pr_strings;
-	e->v.modelindex = i; //SV_ModelIndex (m);
+	e->v.model = PR_SetEngineString(sv.model_precache[i]);
+	e->v.modelindex = i;
 
-	mod = sv.models[ (int)e->v.modelindex];  // Mod_ForName (m, true);
-	
+	mod = sv.models[ (int)e->v.modelindex];
+
 	if (mod)
 		SetMinMaxSize (e, mod->mins, mod->maxs, true);
 	else
@@ -510,30 +522,39 @@ void PF_ambientsound (void)
 	float		*pos;
 	float 		vol, attenuation;
 	int			i, soundnum;
+	int			large = false;
 
-	pos = G_VECTOR (OFS_PARM0);			
+	pos = G_VECTOR (OFS_PARM0);
 	samp = G_STRING(OFS_PARM1);
 	vol = G_FLOAT(OFS_PARM2);
 	attenuation = G_FLOAT(OFS_PARM3);
-	
+
 // check to see if samp was properly precached
 	for (soundnum=0, check = sv.sound_precache ; *check ; check++, soundnum++)
 		if (!strcmp(*check,samp))
 			break;
-			
+
 	if (!*check)
 	{
 		Con_Printf ("no precache: %s\n", samp);
 		return;
 	}
 
-// add an svc_spawnambient command to the level signon packet
+	large = (soundnum > 255);
 
-	MSG_WriteByte (&sv.signon,svc_spawnstaticsound);
+// add an svc_spawnambient command to the level signon packet
+	if (large)
+		MSG_WriteByte (&sv.signon, svc_spawnstaticsound2);
+	else
+		MSG_WriteByte (&sv.signon, svc_spawnstaticsound);
+
 	for (i=0 ; i<3 ; i++)
 		MSG_WriteCoord(&sv.signon, pos[i]);
 
-	MSG_WriteByte (&sv.signon, soundnum);
+	if (large)
+		MSG_WriteShort (&sv.signon, soundnum);
+	else
+		MSG_WriteByte (&sv.signon, soundnum);
 
 	MSG_WriteByte (&sv.signon, vol*255);
 	MSG_WriteByte (&sv.signon, attenuation*64);
@@ -926,12 +947,12 @@ void PF_ftos (void)
 {
 	float	v;
 	v = G_FLOAT(OFS_PARM0);
-	
+
 	if (v == (int)v)
 		sprintf (pr_string_temp, "%d",(int)v);
 	else
 		sprintf (pr_string_temp, "%5.1f",v);
-	G_INT(OFS_RETURN) = pr_string_temp - pr_strings;
+	G_INT(OFS_RETURN) = PR_SetEngineString(pr_string_temp);
 }
 
 void PF_fabs (void)
@@ -944,14 +965,14 @@ void PF_fabs (void)
 void PF_vtos (void)
 {
 	sprintf (pr_string_temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
-	G_INT(OFS_RETURN) = pr_string_temp - pr_strings;
+	G_INT(OFS_RETURN) = PR_SetEngineString(pr_string_temp);
 }
 
 #ifdef QUAKE2
 void PF_etos (void)
 {
 	sprintf (pr_string_temp, "entity %i", G_EDICTNUM(OFS_PARM0));
-	G_INT(OFS_RETURN) = pr_string_temp - pr_strings;
+	G_INT(OFS_RETURN) = PR_SetEngineString(pr_string_temp);
 }
 #endif
 
@@ -1068,14 +1089,17 @@ void PF_precache_sound (void)
 {
 	char	*s;
 	int		i;
-	
+
 	if (sv.state != ss_loading)
-		PR_RunError ("PF_Precache_*: Precache can only be done in spawn functions");
-		
+	{
+		Con_Printf ("PF_precache_sound: late precache of %s\n", G_STRING(OFS_PARM0));
+		//QuakeSpasm: allow late precache instead of crashing
+	}
+
 	s = G_STRING(OFS_PARM0);
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	PR_CheckEmptyString (s);
-	
+
 	for (i=0 ; i<MAX_SOUNDS ; i++)
 	{
 		if (!sv.sound_precache[i])
@@ -1093,10 +1117,13 @@ void PF_precache_model (void)
 {
 	char	*s;
 	int		i;
-	
+
 	if (sv.state != ss_loading)
-		PR_RunError ("PF_Precache_*: Precache can only be done in spawn functions");
-		
+	{
+		Con_Printf ("PF_precache_model: late precache of %s\n", G_STRING(OFS_PARM0));
+		//QuakeSpasm: allow late precache instead of crashing
+	}
+
 	s = G_STRING(OFS_PARM0);
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	PR_CheckEmptyString (s);
@@ -1106,7 +1133,9 @@ void PF_precache_model (void)
 		if (!sv.model_precache[i])
 		{
 			sv.model_precache[i] = s;
-			sv.models[i] = Mod_ForName (s, true);
+			sv.models[i] = Mod_ForName (s, false);
+			if (!sv.models[i])
+				Con_Printf ("PF_precache_model: %s not found\n", s);
 			return;
 		}
 		if (!strcmp(sv.model_precache[i], s))
@@ -1585,14 +1614,37 @@ void PF_makestatic (void)
 {
 	edict_t	*ent;
 	int		i;
-	
+	int		bits = 0;
+
 	ent = G_EDICT(OFS_PARM0);
 
-	MSG_WriteByte (&sv.signon,svc_spawnstatic);
+	int modelindex = SV_ModelIndex(PR_GetString(ent->v.model));
+	int frame = (int)ent->v.frame;
 
-	MSG_WriteByte (&sv.signon, SV_ModelIndex(pr_strings + ent->v.model));
+	if (modelindex & 0xFF00)
+		bits |= B_LARGEMODEL;
+	if (frame & 0xFF00)
+		bits |= B_LARGEFRAME;
+	//ent->baseline.alpha not set for statics — skip B_ALPHA
 
-	MSG_WriteByte (&sv.signon, ent->v.frame);
+	if (bits)
+	{
+		MSG_WriteByte (&sv.signon, svc_spawnstatic2);
+		MSG_WriteByte (&sv.signon, bits);
+	}
+	else
+		MSG_WriteByte (&sv.signon, svc_spawnstatic);
+
+	if (bits & B_LARGEMODEL)
+		MSG_WriteShort (&sv.signon, modelindex);
+	else
+		MSG_WriteByte (&sv.signon, modelindex);
+
+	if (bits & B_LARGEFRAME)
+		MSG_WriteShort (&sv.signon, frame);
+	else
+		MSG_WriteByte (&sv.signon, frame);
+
 	MSG_WriteByte (&sv.signon, ent->v.colormap);
 	MSG_WriteByte (&sv.signon, ent->v.skin);
 	for (i=0 ; i<3 ; i++)
@@ -1600,6 +1652,9 @@ void PF_makestatic (void)
 		MSG_WriteCoord(&sv.signon, ent->v.origin[i]);
 		MSG_WriteAngle(&sv.signon, ent->v.angles[i]);
 	}
+
+	if (bits & B_ALPHA)
+		MSG_WriteByte (&sv.signon, ent->baseline.alpha);
 
 // throw the entity away now
 	ED_Free (ent);
@@ -1823,7 +1878,13 @@ void PF_sqrt (void)
 
 void PF_Fixme (void)
 {
-	PR_RunError ("unimplemented bulitin");
+	PR_RunError ("unimplemented builtin");
+}
+
+// Soft stub: log warning but don't crash (for extended builtins mods may call)
+void PF_Stub (void)
+{
+	Con_DPrintf ("PF_Stub: unimplemented builtin called\n");
 }
 
 
@@ -1926,7 +1987,30 @@ PF_precache_model,
 PF_precache_sound,		// precache_sound2 is different only for qcc
 PF_precache_file,
 
-PF_setspawnparms
+PF_setspawnparms,
+
+//johnfitz -- 2021 re-release / QuakeSpasm extended builtins
+PF_Stub,	// #79 finalefinished
+PF_Stub,	// #80 localsound
+PF_Stub,	// #81 draw_point
+PF_Stub,	// #82 draw_line
+PF_Stub,	// #83 draw_arrow
+PF_Stub,	// #84 draw_ray
+PF_Stub,	// #85 draw_circle
+PF_Stub,	// #86 draw_bounds
+PF_Stub,	// #87 draw_worldtext
+PF_Stub,	// #88 draw_sphere
+PF_Stub,	// #89 draw_cylinder
+PF_Stub,	// #90 checkplayerexflags
+PF_Stub,	// #91 walkpathtogoal
+PF_Stub,	// #92
+PF_Stub,	// #93
+PF_Stub,	// #94
+PF_Stub,	// #95
+PF_Stub,	// #96
+PF_Stub,	// #97
+PF_Stub,	// #98
+PF_Stub,	// #99
 };
 
 builtin_t *pr_builtins = pr_builtin;

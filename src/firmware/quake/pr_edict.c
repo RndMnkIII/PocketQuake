@@ -24,12 +24,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 dprograms_t		*progs;
 dfunction_t		*pr_functions;
 char			*pr_strings;
+int				pr_stringssize;
 ddef_t			*pr_fielddefs;
 ddef_t			*pr_globaldefs;
 dstatement_t	*pr_statements;
 globalvars_t	*pr_global_struct;
 float			*pr_globals;			// same as pr_global_struct
 int				pr_edict_size;	// in bytes
+
+static int		pr_numknownstrings;
+static int		pr_maxknownstrings;
+static const char	**pr_knownstrings;
+static int		pr_numtempstrings;
+static char		pr_tempstrings[4][128];  // rotating temp string buffers
 
 unsigned short		pr_crc;
 
@@ -288,9 +295,9 @@ char *PR_ValueString (etype_t type, eval_t *val)
 	switch (type)
 	{
 	case ev_string:
-		sprintf (line, "%s", pr_strings + val->string);
+		sprintf (line, "%s", PR_GetString(val->string));
 		break;
-	case ev_entity:	
+	case ev_entity:
 		sprintf (line, "entity %i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)) );
 		break;
 	case ev_function:
@@ -340,9 +347,9 @@ char *PR_UglyValueString (etype_t type, eval_t *val)
 	switch (type)
 	{
 	case ev_string:
-		sprintf (line, "%s", pr_strings + val->string);
+		sprintf (line, "%s", PR_GetString(val->string));
 		break;
-	case ev_entity:	
+	case ev_entity:
 		sprintf (line, "%i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)));
 		break;
 	case ev_function:
@@ -692,16 +699,16 @@ ED_NewString
 */
 char *ED_NewString (char *string)
 {
-	char	*new, *new_p;
-	int		i,l;
-	
-	l = strlen(string) + 1;
-	new = Hunk_Alloc (l);
-	new_p = new;
+	char	*new_p;
+	int		i, l;
 
-	for (i=0 ; i< l ; i++)
+	l = strlen(string) + 1;
+	(void)PR_AllocString (l, &new_p);
+	char *start = new_p;
+
+	for (i = 0; i < l; i++)
 	{
-		if (string[i] == '\\' && i < l-1)
+		if (string[i] == '\\' && i < l - 1)
 		{
 			i++;
 			if (string[i] == 'n')
@@ -712,8 +719,8 @@ char *ED_NewString (char *string)
 		else
 			*new_p++ = string[i];
 	}
-	
-	return new;
+
+	return start;
 }
 
 
@@ -739,7 +746,7 @@ qboolean	ED_ParseEpair (void *base, ddef_t *key, char *s)
 	switch (key->type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
-		*(string_t *)d = ED_NewString (s) - pr_strings;
+		*(string_t *)d = PR_SetEngineString (ED_NewString (s));
 		break;
 		
 	case ev_float:
@@ -959,7 +966,7 @@ void ED_LoadFromFile (char *data)
 		}
 
 	// look for the spawn function
-		func = ED_FindFunction ( pr_strings + ent->v.classname );
+		func = ED_FindFunction ( PR_GetString(ent->v.classname) );
 
 		if (!func)
 		{
@@ -990,23 +997,26 @@ void PR_LoadProgs (void)
 	for (i=0 ; i<GEFV_CACHESIZE ; i++)
 		gefvCache[i].field[0] = 0;
 
+// reset dynamic string table
+	if (pr_knownstrings)
+		Z_Free ((void *)pr_knownstrings);
+	pr_knownstrings = NULL;
+	pr_numknownstrings = 0;
+	pr_maxknownstrings = 0;
+
 	CRC_Init (&pr_crc);
 
 	progs = (dprograms_t *)COM_LoadHunkFile ("progs.dat");
 	if (!progs)
 		Sys_Error ("PR_LoadProgs: couldn't load progs.dat");
 	Con_DPrintf ("Programs occupy %iK.\n", com_filesize/1024);
-	Sys_Printf("DBG progs.dat raw header: v=0x%x crc=0x%x size=0x%x\n",
-		((int *)progs)[0], ((int *)progs)[1], com_filesize);
 
 	for (i=0 ; i<com_filesize ; i++)
 		CRC_ProcessByte (&pr_crc, ((byte *)progs)[i]);
 
 // byte swap the header
 	for (i=0 ; i<sizeof(*progs)/4 ; i++)
-		((int *)progs)[i] = LittleLong ( ((int *)progs)[i] );		
-	Sys_Printf("DBG progs.dat swapped: version=%d crc=0x%x\n",
-		progs->version, progs->crc);
+		((int *)progs)[i] = LittleLong ( ((int *)progs)[i] );
 
 	if (progs->version != PROG_VERSION)
 		Sys_Error ("progs.dat has wrong version number (%i should be %i)", progs->version, PROG_VERSION);
@@ -1015,6 +1025,7 @@ void PR_LoadProgs (void)
 
 	pr_functions = (dfunction_t *)((byte *)progs + progs->ofs_functions);
 	pr_strings = (char *)progs + progs->ofs_strings;
+	pr_stringssize = progs->numstrings;
 	pr_globaldefs = (ddef_t *)((byte *)progs + progs->ofs_globaldefs);
 	pr_fielddefs = (ddef_t *)((byte *)progs + progs->ofs_fielddefs);
 	pr_statements = (dstatement_t *)((byte *)progs + progs->ofs_statements);
@@ -1100,11 +1111,94 @@ edict_t *EDICT_NUM(int n)
 int NUM_FOR_EDICT(edict_t *e)
 {
 	int		b;
-	
+
 	b = (byte *)e - (byte *)sv.edicts;
 	b = b / pr_edict_size;
-	
+
 	if (b < 0 || b >= sv.num_edicts)
 		Sys_Error ("NUM_FOR_EDICT: bad pointer");
 	return b;
+}
+
+/*
+=============
+PR_GetString — QuakeSpasm dynamic string management
+
+Positive indices are offsets into pr_strings (progs string table).
+Negative indices are lookups into the engine's known-strings table.
+=============
+*/
+char *PR_GetString (int num)
+{
+	if (num >= 0 && num < pr_stringssize)
+		return pr_strings + num;
+	else if (num < 0 && num >= -pr_numknownstrings)
+	{
+		if (!pr_knownstrings[-1 - num])
+		{
+			Host_Error ("PR_GetString: attempt to get a non-existant string %d\n", num);
+			return "";
+		}
+		return (char *)pr_knownstrings[-1 - num];
+	}
+	else
+	{
+		/* In vanilla Quake, strings outside the progs table are
+		 * stored as raw offsets from pr_strings. Support that for
+		 * backwards compatibility. */
+		return pr_strings + num;
+	}
+}
+
+int PR_SetEngineString (const char *s)
+{
+	int		i;
+
+	if (!s)
+		return 0;
+	if (s >= pr_strings && s < pr_strings + pr_stringssize)
+		return (int)(s - pr_strings);
+	for (i = 0; i < pr_numknownstrings; i++)
+	{
+		if (pr_knownstrings[i] == s)
+			return -1 - i;
+	}
+	/* not found, add it */
+	if (pr_numknownstrings >= pr_maxknownstrings)
+	{
+		int		newmax = pr_maxknownstrings + 256;
+		const char	**newstrings = Z_Malloc (newmax * sizeof(char *));
+		if (pr_knownstrings)
+		{
+			memcpy (newstrings, pr_knownstrings, pr_numknownstrings * sizeof(char *));
+			Z_Free ((void *)pr_knownstrings);
+		}
+		pr_knownstrings = newstrings;
+		pr_maxknownstrings = newmax;
+	}
+	pr_knownstrings[pr_numknownstrings] = s;
+	return -1 - pr_numknownstrings++;
+}
+
+int PR_AllocString (int buffsize, char **ptr)
+{
+	char	*p;
+
+	if (pr_numknownstrings >= pr_maxknownstrings)
+	{
+		int		newmax = pr_maxknownstrings + 256;
+		const char	**newstrings = Z_Malloc (newmax * sizeof(char *));
+		if (pr_knownstrings)
+		{
+			memcpy (newstrings, pr_knownstrings, pr_numknownstrings * sizeof(char *));
+			Z_Free ((void *)pr_knownstrings);
+		}
+		pr_knownstrings = newstrings;
+		pr_maxknownstrings = newmax;
+	}
+	p = Hunk_Alloc (buffsize);
+	pr_knownstrings[pr_numknownstrings] = p;
+	if (ptr)
+		*ptr = p;
+	return -1 - pr_numknownstrings++;
 }

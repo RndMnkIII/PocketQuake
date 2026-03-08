@@ -1,0 +1,37 @@
+{
+    "instance": {
+        "magic": "APF_VER_1",
+        "data_slots": [
+            {
+                "id": 0,
+                "filename": "quake.bin"
+            },
+            {
+                "id": 1,
+                "filename": "pak0.pak"
+            },
+            {
+                "id": 2,
+                "filename": "pak1.pak"
+            },
+            {
+                "id": 3,
+                "filename": "rogue/pak0.pak"
+            }
+        ],
+        "memory_writes": [
+            {
+                "address": "0xF0000010",
+                "data": "0x00000003"
+            },
+            {
+                "address": "0xF0000014",
+                "data": "0x75676F72"
+            },
+            {
+                "address": "0xF0000018",
+                "data": "0x00000065"
+            }
+        ]
+    }
+}

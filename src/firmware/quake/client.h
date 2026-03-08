@@ -92,7 +92,7 @@ typedef struct
 	vec3_t	start, end;
 } beam_t;
 
-#define	MAX_EFRAGS		640
+#define	MAX_EFRAGS		2048
 
 #define	MAX_MAPSTRING	2048
 #define	MAX_DEMOS		8
@@ -147,9 +147,10 @@ extern client_static_t	cls;
 //
 typedef struct
 {
+	int			protocol;		// PROTOCOL_NETQUAKE or PROTOCOL_FITZQUAKE
 	int			movemessages;	// since connecting to this server
 								// throw out the first couple, so the player
-								// doesn't accidentally do something the 
+								// doesn't accidentally do something the
 								// first frame
 	usercmd_t	cmd;			// last command sent to the server
 
@@ -270,7 +271,7 @@ extern	cvar_t	m_side;
 
 
 #define	MAX_TEMP_ENTITIES	64			// lightning bolts, etc
-#define	MAX_STATIC_ENTITIES	128			// torches, etc
+#define	MAX_STATIC_ENTITIES	256			// torches, etc
 
 extern	client_state_t	cl;
 

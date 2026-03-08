@@ -20,9 +20,18 @@ volatile unsigned int pq_dbg_info = 0;
 #define CPU_FREQ         100000000  /* clk_cpu currently runs at 100 MHz */
 
 /* On-demand PAK reading via APF dataslot */
-#define PAK0_SLOT_ID     1      /* data.json slot id for pak0.pak */
-#define PAK1_SLOT_ID     2      /* data.json slot id for pak1.pak */
+#define PAK0_SLOT_ID     1      /* base id1 pak0.pak */
+#define PAK1_SLOT_ID     2      /* base id1 pak1.pak */
+#define MOD_PAK0_SLOT_ID 3      /* mod pak0.pak */
+#define MOD_PAK1_SLOT_ID 4      /* mod pak1.pak */
+#define MOD_PAK2_SLOT_ID 5      /* mod pak2.pak */
+#define MOD_PAK3_SLOT_ID 6      /* mod pak3.pak */
+#define MOD_PAK4_SLOT_ID 7      /* mod pak4.pak */
+#define PROGS_SLOT_ID    8      /* loose progs.dat */
 #define PAK_MAX_SIZE     (48 * 1024 * 1024)  /* 48MB max */
+
+/* Game mode sysreg (captured by FPGA from instance memory_writes at 0xF0) */
+#define SYSREG_GAME_MODE   (*(volatile uint32_t *)0x40000098)
 /* DMA_BUFFER and DMA_CHUNK_SIZE defined in dataslot.h */
 
 /* PAK file structure */
@@ -76,23 +85,11 @@ static void Pak_Init(void)
 
         /* Verify sentinels via uncached alias */
         volatile unsigned int *uc = (volatile unsigned int *)SDRAM_UNCACHED(DMA_BUFFER);
-        term_printf("Pre: %x %x %x %x\n", uc[0], uc[1], uc[2], uc[3]);
 
-        /* DMA 64 bytes (not just 12) to check full word writes */
+        /* DMA 64 bytes to read PAK header */
         rc = dataslot_read(PAK0_SLOT_ID, 0, (void *)DMA_BUFFER, 64);
-        term_printf("DMA rc=%d\n", rc);
-
-        /* Read back all 16 words via uncached alias */
-        term_printf("UC: %x %x %x %x\n", uc[0], uc[1], uc[2], uc[3]);
-        term_printf("    %x %x %x %x\n", uc[4], uc[5], uc[6], uc[7]);
-
-        /* Second DMA to verify consistency */
-        rc = dataslot_read(PAK0_SLOT_ID, 0, (void *)DMA_BUFFER, 64);
-        term_printf("DMA2 rc=%d\n", rc);
-        term_printf("UC2: %x %x %x %x\n", uc[0], uc[1], uc[2], uc[3]);
 
         if (rc != 0) {
-            term_printf("Pak_Init: dataslot_read header failed (%d)\n", rc);
             pak_numfiles = 0;
             pak_initialized = 1;
             return;
@@ -100,12 +97,9 @@ static void Pak_Init(void)
         hdr.ident = uc[0];
         hdr.dirofs = uc[1];
         hdr.dirlen = uc[2];
-        term_printf("Pak_Init: magic=%x dirofs=%x dirlen=%x\n",
-                     hdr.ident, hdr.dirofs, hdr.dirlen);
     }
 
     if (hdr.ident != PAK_HEADER_MAGIC) {
-        term_printf("Pak_Init: bad magic 0x%x\n", hdr.ident);
         pak_numfiles = 0;
         pak_initialized = 1;
         return;
@@ -133,13 +127,11 @@ static void Pak_Init(void)
         }
     }
     if (rc != 0) {
-        term_printf("Pak_Init: dataslot_read dir failed (%d)\n", rc);
         pak_numfiles = 0;
         pak_initialized = 1;
         return;
     }
 
-    term_printf("Pak_Init: %d files, total %d bytes\n", pak_numfiles, pak_total_size);
     pak_initialized = 1;
 }
 
@@ -203,15 +195,27 @@ int Sys_FileOpenRead(char *path, int *hndl)
 
     i = findhandle();
 
-    /* Intercept requests for pak files — return an on-demand handle */
+    /* Intercept requests for pak files — return an on-demand handle.
+     * Base id1 directory: pak0→1, pak1→2
+     * Mod directory:      pak0→3, pak1→4, pak2→5, pak3→6
+     * Detect mod directory: path does NOT contain "/id1/". */
     {
         const char *p = path;
         int slot_id = -1;
+        int is_mod_dir = (strstr(path, "/id1/") == NULL && strstr(path, "./id1/") == NULL);
         while (*p) {
             if (p[0]=='p'&&p[1]=='a'&&p[2]=='k'&&
                 p[4]=='.'&&p[5]=='p'&&p[6]=='a'&&p[7]=='k') {
-                if (p[3] == '0') { slot_id = PAK0_SLOT_ID; break; }
-                if (p[3] == '1') { slot_id = PAK1_SLOT_ID; break; }
+                if (is_mod_dir) {
+                    if (p[3] == '0') { slot_id = MOD_PAK0_SLOT_ID; break; }
+                    if (p[3] == '1') { slot_id = MOD_PAK1_SLOT_ID; break; }
+                    if (p[3] == '2') { slot_id = MOD_PAK2_SLOT_ID; break; }
+                    if (p[3] == '3') { slot_id = MOD_PAK3_SLOT_ID; break; }
+                    if (p[3] == '4') { slot_id = MOD_PAK4_SLOT_ID; break; }
+                } else {
+                    if (p[3] == '0') { slot_id = PAK0_SLOT_ID; break; }
+                    if (p[3] == '1') { slot_id = PAK1_SLOT_ID; break; }
+                }
             }
             p++;
         }
@@ -232,6 +236,40 @@ int Sys_FileOpenRead(char *path, int *hndl)
             sys_handles[i].slot_id = slot_id;
             *hndl = i;
             return PAK_MAX_SIZE;
+        }
+    }
+
+    /* Intercept loose progs.dat — load via dataslot */
+    {
+        int len = strlen(path);
+        if (len >= 9 && strcmp(path + len - 9, "progs.dat") == 0) {
+            int rc = dataslot_read(PROGS_SLOT_ID, 0, (void *)DMA_BUFFER, sizeof(dprograms_t));
+            if (rc == 0) {
+                /* Compute file size from progs header: max extent of all sections */
+                const dprograms_t *hdr = (const dprograms_t *)SDRAM_UNCACHED(DMA_BUFFER);
+                uint32_t fsize = sizeof(dprograms_t);
+                uint32_t end;
+                end = hdr->ofs_statements + hdr->numstatements * sizeof(dstatement_t);
+                if (end > fsize) fsize = end;
+                end = hdr->ofs_globaldefs + hdr->numglobaldefs * sizeof(ddef_t);
+                if (end > fsize) fsize = end;
+                end = hdr->ofs_fielddefs + hdr->numfielddefs * sizeof(ddef_t);
+                if (end > fsize) fsize = end;
+                end = hdr->ofs_functions + hdr->numfunctions * sizeof(dfunction_t);
+                if (end > fsize) fsize = end;
+                end = hdr->ofs_strings + hdr->numstrings;
+                if (end > fsize) fsize = end;
+                end = hdr->ofs_globals + hdr->numglobals * 4;
+                if (end > fsize) fsize = end;
+
+                sys_handles[i].used = 1;
+                sys_handles[i].data = NULL;
+                sys_handles[i].length = fsize;
+                sys_handles[i].position = 0;
+                sys_handles[i].slot_id = PROGS_SLOT_ID;
+                *hndl = i;
+                return fsize;
+            }
         }
     }
 
@@ -367,8 +405,8 @@ int Sys_FileRead(int handle, void *dest, int count)
 /* Print DMA stats — call from Host_Init or similar */
 void Sys_PrintDmaStats(void)
 {
-    term_printf("DMA: %d calls, %d errs, %d stale\n",
-                dma_total_calls, dma_total_errors, dma_stale_hits);
+    Sys_Printf("DMA: %d calls, %d errs, %d stale\n",
+               dma_total_calls, dma_total_errors, dma_stale_hits);
 }
 
 int Sys_FileWrite(int handle, void *data, int count)
@@ -382,7 +420,7 @@ int Sys_FileWrite(int handle, void *data, int count)
 /* Save region layout (must match file.c defines) */
 #define SAV_REGION_BASE  0x13C00000
 #define SAV_SLOT_SIZE    (128 * 1024)
-#define SAV_MAX_SLOTS    12
+#define SAV_MAX_SLOTS    10
 
 int Sys_FileTime(char *path)
 {
@@ -397,6 +435,13 @@ int Sys_FileTime(char *path)
         uint32_t cfg_addr = SAV_REGION_BASE + SAV_MAX_SLOTS * SAV_SLOT_SIZE;
         uint32_t saved_size = *(volatile uint32_t *)SDRAM_UNCACHED(cfg_addr);
         if (saved_size > 0 && saved_size < SAV_SLOT_SIZE)
+            return 1;
+    }
+
+    /* Check for loose progs.dat via dataslot probe */
+    if (len >= 9 && strcmp(path + len - 9, "progs.dat") == 0) {
+        int rc = dataslot_read(PROGS_SLOT_ID, 0, (void *)DMA_BUFFER, 4);
+        if (rc == 0)
             return 1;
     }
 
@@ -518,8 +563,29 @@ MAIN
 extern char _heap_start[];
 extern char _heap_end[];
 
+/* Game mode: captured by FPGA from instance memory_writes at 0xF0000010-1C.
+ * Exposed as sysreg at 0x40000098 (mode) and 0x4000009C-A4 (name words).
+ *   0 = base Quake (no extra args)
+ *   1 = -game <name> (generic mod, e.g. xmenquake)
+ *   2 = -hipnotic (Scourge of Armagon expansion)
+ *   3 = -rogue (Dissolution of Eternity expansion)
+ */
+#define SYSREG_GAME_NAME0  (*(volatile uint32_t *)0x4000009C)
+#define SYSREG_GAME_NAME1  (*(volatile uint32_t *)0x400000A0)
+#define SYSREG_GAME_NAME2  (*(volatile uint32_t *)0x400000A4)
+
+#define GAME_MODE_GAME     1
+#define GAME_MODE_HIPNOTIC 2
+#define GAME_MODE_ROGUE    3
+
+/* Game name buffer — filled from sysreg at startup */
+static char game_name_buf[16];
+
 /* Static arguments for Quake */
-static char *quake_argv[] = { "quake", NULL };
+static char *quake_argv_base[]     = { "quake", NULL };
+static char *quake_argv_game[]     = { "quake", "-game", game_name_buf, NULL };
+static char *quake_argv_hipnotic[] = { "quake", "-hipnotic", NULL };
+static char *quake_argv_rogue[]    = { "quake", "-rogue", NULL };
 
 /* External: called from main.c */
 void __attribute__((noinline, aligned(4))) quake_main(void)
@@ -530,8 +596,42 @@ void __attribute__((noinline, aligned(4))) quake_main(void)
     /* Set up parameters */
     parms.basedir = ".";
     parms.cachedir = NULL;
-    parms.argc = 1;
-    parms.argv = quake_argv;
+    /* Read game mode from FPGA sysreg (captured from bridge memory_writes) */
+    {
+        uint32_t game_mode = SYSREG_GAME_MODE;
+
+        /* Copy game name from sysreg words into buffer */
+        {
+            uint32_t w0 = SYSREG_GAME_NAME0;
+            uint32_t w1 = SYSREG_GAME_NAME1;
+            uint32_t w2 = SYSREG_GAME_NAME2;
+            Q_memcpy(game_name_buf + 0, &w0, 4);
+            Q_memcpy(game_name_buf + 4, &w1, 4);
+            Q_memcpy(game_name_buf + 8, &w2, 4);
+            game_name_buf[12] = '\0';
+        }
+
+        Sys_Printf("Game mode: %d name: '%s'\n", game_mode, game_name_buf);
+
+        switch (game_mode) {
+        case GAME_MODE_GAME:
+            parms.argc = 3;
+            parms.argv = quake_argv_game;
+            break;
+        case GAME_MODE_HIPNOTIC:
+            parms.argc = 2;
+            parms.argv = quake_argv_hipnotic;
+            break;
+        case GAME_MODE_ROGUE:
+            parms.argc = 2;
+            parms.argv = quake_argv_rogue;
+            break;
+        default:
+            parms.argc = 1;
+            parms.argv = quake_argv_base;
+            break;
+        }
+    }
 
     /* Set up heap - use the linker-defined heap region */
     parms.membase = (void *)_heap_start;

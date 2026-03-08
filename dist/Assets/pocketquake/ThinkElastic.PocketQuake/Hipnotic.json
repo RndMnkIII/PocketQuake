@@ -1,0 +1,41 @@
+{
+    "instance": {
+        "magic": "APF_VER_1",
+        "data_slots": [
+            {
+                "id": 0,
+                "filename": "quake.bin"
+            },
+            {
+                "id": 1,
+                "filename": "pak0.pak"
+            },
+            {
+                "id": 2,
+                "filename": "pak1.pak"
+            },
+            {
+                "id": 3,
+                "filename": "hipnotic/pak0.pak"
+            }
+        ],
+        "memory_writes": [
+            {
+                "address": "0xF0000010",
+                "data": "0x00000002"
+            },
+            {
+                "address": "0xF0000014",
+                "data": "0x6E706968"
+            },
+            {
+                "address": "0xF0000018",
+                "data": "0x6369746F"
+            },
+            {
+                "address": "0xF000001C",
+                "data": "0x00000000"
+            }
+        ]
+    }
+}

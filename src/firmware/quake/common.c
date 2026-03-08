@@ -1375,7 +1375,27 @@ int COM_FindFile (char *filename, int *handle, FILE **file)
 		Sys_Error ("COM_FindFile: both handle and file set");
 	if (!file && !handle)
 		Sys_Error ("COM_FindFile: neither handle or file set");
-		
+
+//
+// check for loose progs.dat override via dataslot
+//
+	if (!strcmp(filename, "progs.dat"))
+	{
+		int fh;
+		com_filesize = Sys_FileOpenRead (filename, &fh);
+		if (com_filesize >= 0)
+		{
+			if (handle)
+				*handle = fh;
+			else
+			{
+				Sys_FileClose (fh);
+				if (file) *file = NULL;
+			}
+			return com_filesize;
+		}
+	}
+
 //
 // search through the path, one element at a time
 //
@@ -1462,7 +1482,7 @@ int COM_FindFile (char *filename, int *handle, FILE **file)
 	}
 	
 	Sys_Printf ("FindFile: can't find %s\n", filename);
-	
+
 	if (handle)
 		*handle = -1;
 	else
@@ -1707,12 +1727,12 @@ void COM_AddGameDirectory (char *dir)
 //
 // add any pak files in the format pak0.pak pak1.pak, ...
 //
-	for (i=0 ; ; i++)
+	for (i=0 ; i < 10 ; i++)
 	{
 		sprintf (pakfile, "%s/pak%i.pak", dir, i);
 		pak = COM_LoadPackFile (pakfile);
 		if (!pak)
-			break;
+			continue;
 		search = Hunk_Alloc (sizeof(searchpath_t));
 		search->pack = pak;
 		search->next = com_searchpaths;

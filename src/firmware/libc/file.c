@@ -43,8 +43,13 @@ static void free_file(FILE *f) {
 }
 
 /* PAK data slot IDs (matches data.json) */
-#define PAK0_SLOT_ID     1
-#define PAK1_SLOT_ID     2
+#define PAK0_SLOT_ID      1      /* base id1 pak0.pak */
+#define PAK1_SLOT_ID      2      /* base id1 pak1.pak */
+#define MOD_PAK0_SLOT_ID  3      /* mod pak0.pak */
+#define MOD_PAK1_SLOT_ID  4      /* mod pak1.pak */
+#define MOD_PAK2_SLOT_ID  5      /* mod pak2.pak */
+#define MOD_PAK3_SLOT_ID  6      /* mod pak3.pak */
+#define MOD_PAK4_SLOT_ID  7      /* mod pak4.pak */
 #define PAK_MAX_SIZE     (48 * 1024 * 1024)  /* 48MB max */
 
 /* Savegame/config write support via direct SDRAM access.
@@ -57,14 +62,14 @@ static void free_file(FILE *f) {
 static char sav_buf[SAV_BUF_SIZE] __attribute__((section(".bss.sav")));
 
 /* Per-file save slots (data.json):
- *   Slots 20-31 = s0.sav through s11.sav (nonvolatile, 128KB each)
- *   Slot  32    = config.cfg (nonvolatile, 128KB)
+ *   Slots 20-29 = s0.sav through s9.sav (nonvolatile, 128KB each)
+ *   Slot  30    = config.cfg (nonvolatile, 128KB)
  * SDRAM region: bridge 0x03C00000 = CPU 0x13C00000, 128KB per slot. */
 #define SAV_REGION_BASE  0x13C00000
 #define SAV_SLOT_BASE    20     /* data slot ID for s0.sav */
-#define SAV_CFG_SLOT     32     /* data slot ID for config.cfg */
+#define SAV_CFG_SLOT     30     /* data slot ID for config.cfg */
 #define SAV_SLOT_SIZE    (128 * 1024)
-#define SAV_MAX_SLOTS    12
+#define SAV_MAX_SLOTS    10
 #define SAV_HEADER_SIZE  4
 
 /* Which save/config slot is currently open for writing (-1 = none) */
@@ -116,14 +121,38 @@ static const char *path_basename(const char *pathname) {
     return last;
 }
 
+/* Check if path is a base id1 directory (contains /id1/) */
+static int is_base_dir(const char *pathname) {
+    return (strstr(pathname, "/id1/") != NULL || strstr(pathname, "./id1/") != NULL);
+}
+
 /* Map filename to data slot ID for on-demand PAK reading.
- * Returns slot ID >= 0 for known pak files, -1 for unknown. */
+ * Returns slot ID >= 0 for known pak files, -1 for unknown.
+ * Distinguishes base id1 PAKs from mod PAKs by directory path. */
 static int filename_to_slot(const char *pathname) {
-    if (str_ends_with(pathname, "pak0.pak") || str_ends_with(pathname, "PAK0.PAK"))
-        return PAK0_SLOT_ID;
-    if (str_ends_with(pathname, "pak1.pak") || str_ends_with(pathname, "PAK1.PAK"))
-        return PAK1_SLOT_ID;
-    return -1;
+    int is_pak0 = str_ends_with(pathname, "pak0.pak") || str_ends_with(pathname, "PAK0.PAK");
+    int is_pak1 = str_ends_with(pathname, "pak1.pak") || str_ends_with(pathname, "PAK1.PAK");
+    int is_pak2 = str_ends_with(pathname, "pak2.pak") || str_ends_with(pathname, "PAK2.PAK");
+    int is_pak3 = str_ends_with(pathname, "pak3.pak") || str_ends_with(pathname, "PAK3.PAK");
+    int is_pak4 = str_ends_with(pathname, "pak4.pak") || str_ends_with(pathname, "PAK4.PAK");
+
+    if (!is_pak0 && !is_pak1 && !is_pak2 && !is_pak3 && !is_pak4)
+        return -1;
+
+    if (is_base_dir(pathname)) {
+        /* Base id1 directory */
+        if (is_pak0) return PAK0_SLOT_ID;
+        if (is_pak1) return PAK1_SLOT_ID;
+        return -1;
+    } else {
+        /* Mod directory */
+        if (is_pak0) return MOD_PAK0_SLOT_ID;
+        if (is_pak1) return MOD_PAK1_SLOT_ID;
+        if (is_pak2) return MOD_PAK2_SLOT_ID;
+        if (is_pak3) return MOD_PAK3_SLOT_ID;
+        if (is_pak4) return MOD_PAK4_SLOT_ID;
+        return -1;
+    }
 }
 
 /* ============================================

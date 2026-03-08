@@ -22,6 +22,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "r_local.h"
 
+#ifdef POCKET_QUAKE
+extern void term_printf(const char *fmt, ...);
+#endif
+
 /*
 
 A server can allways be started, even if the system started out as a client
@@ -96,7 +100,13 @@ void Host_EndGame (char *message, ...)
 	vsprintf (string,message,argptr);
 	va_end (argptr);
 	Con_DPrintf ("Host_EndGame: %s\n",string);
-	
+
+#ifdef POCKET_QUAKE
+	/* Switch to terminal so the message is visible */
+	(*(volatile unsigned int *)0x4000000C) = 0;
+	term_printf("Host_EndGame: %s\n", string);
+#endif
+
 	if (sv.active)
 		Host_ShutdownServer (false);
 
@@ -141,6 +151,12 @@ void Host_Error (char *error, ...)
 	va_end (argptr);
 	Sys_Printf ("Host_Error: %s\n",string);
 	Con_Printf ("Host_Error: %s\n",string);
+
+#ifdef POCKET_QUAKE
+	/* Switch to terminal so the message is visible */
+	(*(volatile unsigned int *)0x4000000C) = 0;
+	term_printf("Host_Error: %s\n", string);
+#endif
 	
 	if (sv.active)
 		Host_ShutdownServer (false);
@@ -651,9 +667,6 @@ void _Host_Frame (float time)
 	static float		time3 = 0;
 	int			pass1, pass2, pass3;
 #ifdef POCKET_QUAKE
-	static int          hb_logs = 0;
-	static int          hb_cbuf_stage = 0;
-	static int          first_frame_dbg = 0;
 	static int          live_hb = 0;
 #endif
 
@@ -667,15 +680,6 @@ void _Host_Frame (float time)
 		v[26 * 40 + 0] = 'S';  /* Stage */
 		v[26 * 40 + 1] = '0';  /* will update at each stage */
 	}
-
-#ifdef POCKET_QUAKE
-	if (first_frame_dbg < 32 && cls.signon == SIGNONS)
-	{
-		if (0) Sys_Printf ("DBG HF enter: f=%d state=%d signon=%d\n",
-		            host_framecount, cls.state, cls.signon);
-		first_frame_dbg++;
-	}
-#endif
 
 // keep the random time dependent
 	rand ();
@@ -693,38 +697,9 @@ void _Host_Frame (float time)
 	IN_Commands ();
 	pq_dbg_stage = 0x2004;
 
-#ifdef POCKET_QUAKE
-	/* Bring-up heartbeat: proves frame loop is alive and shows live controller MMIO. */
-	if (hb_logs < 64 && (host_framecount & 31) == 0)
-	{
-		volatile unsigned int *dbg_key1 = (volatile unsigned int *)0x40000050;
-		volatile unsigned int *dbg_joy1 = (volatile unsigned int *)0x40000054;
-		volatile unsigned int *dbg_key2 = (volatile unsigned int *)0x4000005C;
-		volatile unsigned int *dbg_joy2 = (volatile unsigned int *)0x40000060;
-		if (0) Con_Printf ("HB f=%d c1(k=%08x j=%08x) c2(k=%08x j=%08x)\n",
-		            host_framecount, *dbg_key1, *dbg_joy1, *dbg_key2, *dbg_joy2);
-		if (0) Sys_Printf ("HB f=%d c1(k=%08x j=%08x) c2(k=%08x j=%08x)\n",
-		            host_framecount, *dbg_key1, *dbg_joy1, *dbg_key2, *dbg_joy2);
-		hb_logs++;
-	}
-	if (hb_cbuf_stage == 0) {
-		if (0) Con_Printf ("HB pre Cbuf_Execute\n");
-		hb_cbuf_stage = 1;
-	}
-#endif
-
 // process console commands
-	((volatile char *)0x20000000)[26 * 40 + 1] = '1';  /* before Cbuf_Execute */
 	Cbuf_Execute ();
-	((volatile char *)0x20000000)[26 * 40 + 1] = '2';  /* after Cbuf_Execute */
 	pq_dbg_stage = 0x2005;
-
-#ifdef POCKET_QUAKE
-	if (hb_cbuf_stage == 1) {
-		if (0) Con_Printf ("HB post Cbuf_Execute\n");
-		hb_cbuf_stage = 2;
-	}
-#endif
 
 	NET_Poll();
 	pq_dbg_stage = 0x2006;

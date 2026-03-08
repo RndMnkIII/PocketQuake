@@ -379,7 +379,7 @@ void PR_ExecuteProgram (func_t fnum)
 	
 	f = &pr_functions[fnum];
 
-	runaway = 100000;
+	runaway = 0x1000000; /* QuakeSpasm: was 100000 */
 	pr_trace = false;
 
 // make a stack frame
@@ -483,7 +483,7 @@ while (1)
 		c->_float = !a->vector[0] && !a->vector[1] && !a->vector[2];
 		break;
 	case OP_NOT_S:
-		c->_float = !a->string || !pr_strings[a->string];
+		c->_float = !a->string || !*PR_GetString(a->string);
 		break;
 	case OP_NOT_FNC:
 		c->_float = !a->function;
@@ -501,7 +501,7 @@ while (1)
 					(a->vector[2] == b->vector[2]);
 		break;
 	case OP_EQ_S:
-		c->_float = !strcmp(pr_strings+a->string,pr_strings+b->string);
+		c->_float = !strcmp(PR_GetString(a->string),PR_GetString(b->string));
 		break;
 	case OP_EQ_E:
 		c->_float = a->_int == b->_int;
@@ -520,7 +520,7 @@ while (1)
 					(a->vector[2] != b->vector[2]);
 		break;
 	case OP_NE_S:
-		c->_float = strcmp(pr_strings+a->string,pr_strings+b->string);
+		c->_float = strcmp(PR_GetString(a->string),PR_GetString(b->string));
 		break;
 	case OP_NE_E:
 		c->_float = a->_int != b->_int;
@@ -637,9 +637,9 @@ while (1)
 
 	case OP_DONE:
 	case OP_RETURN:
-		pr_globals[OFS_RETURN] = pr_globals[st->a];
-		pr_globals[OFS_RETURN+1] = pr_globals[st->a+1];
-		pr_globals[OFS_RETURN+2] = pr_globals[st->a+2];
+		pr_globals[OFS_RETURN] = pr_globals[(unsigned short)st->a];
+		pr_globals[OFS_RETURN+1] = pr_globals[(unsigned short)st->a+1];
+		pr_globals[OFS_RETURN+2] = pr_globals[(unsigned short)st->a+2];
 	
 		s = PR_LeaveFunction ();
 		if (pr_depth == exitdepth)

@@ -30,22 +30,21 @@ Track 01 is the game data track and is not needed. Only tracks 02 through 11 con
 
 ### Controls
 
-| Button | Action |
-|--------|--------|
-| D-pad left/right | Look left/right |
-| D-pad up/down | Look up/down |
-| L1 | Change weapon |
-| R1 | Fire |
-| Y (left face) | Strafe left |
-| A (right face) | Strafe right |
-| B (bottom face) | Walk forward |
-| X (top face) | Jump |
-| Left stick | Move (forward/back/strafe) |
-| L2/R2 | Strafe left/right |
-| Start | Menu |
-| Select | Show scores |
-
-In menus, A and B act as confirm and D-pad up/down navigates.
+| Button | In-Game | Menu |
+|--------|---------|------|
+| D-pad Up | Move forward | Navigate up |
+| D-pad Down | Move backward | Navigate down |
+| D-pad Left | Strafe left | Navigate left |
+| D-pad Right | Strafe right | Navigate right |
+| X / Triangle (top) | Look up | — |
+| B / Cross (bottom) | Look down | Confirm |
+| Y / Square (left) | Turn left | — |
+| A / Circle (right) | Turn right | Confirm |
+| R1 | Fire | — |
+| L1 | Jump | — |
+| Left stick | Move (forward/back/strafe) | — |
+| Start | Menu (Escape) | Menu (Escape) |
+| Select | Change weapon | — |
 
 ## Features
 
@@ -319,10 +318,27 @@ make quick            # Build firmware + update MIF + program via JTAG
 SD Card Root/
 +-- Assets/
 |   +-- pocketquake/
+|       +-- ThinkElastic.PocketQuake/
+|       |   +-- Quake.json          (full game)
+|       |   +-- Shareware.json      (shareware Episode 1)
+|       |   +-- Hipnotic.json       (Scourge of Armagon)
+|       |   +-- Rogue.json          (Dissolution of Eternity)
+|       |   +-- X-Men.json          (X-Men Quake TC)
 |       +-- common/
 |           +-- quake.bin
-|           +-- pak0.pak        (from your Quake installation)
-|           +-- cd/             (optional — soundtrack)
+|           +-- pak0.pak            (from your Quake installation)
+|           +-- pak1.pak            (registered game, optional)
+|           +-- hipnotic/
+|           |   +-- pak0.pak        (mission pack 1, optional)
+|           +-- rogue/
+|           |   +-- pak0.pak        (mission pack 2, optional)
+|           +-- XMEN/
+|           |   +-- pak0.pak        (X-Men TC, optional)
+|           |   +-- pak1.pak
+|           |   +-- pak2.pak
+|           |   +-- pak3.pak
+|           |   +-- progs.dat
+|           +-- cd/                 (optional — soundtrack)
 |               +-- Quake (USA) (Track 02).bin
 |               +-- ...
 |               +-- Quake (USA) (Track 11).bin
@@ -330,12 +346,13 @@ SD Card Root/
 |   +-- ThinkElastic.PocketQuake/
 |       +-- bitstream.rbf_r
 |       +-- core.json
-|       +-- (other .json files)
 +-- Platforms/
     +-- _images/
     |   +-- pocketquake.bin
     +-- pocketquake.json
 ```
+
+See [GAME_FILES.md](GAME_FILES.md) for instructions on obtaining the game data files.
 
 ## Project Structure
 
