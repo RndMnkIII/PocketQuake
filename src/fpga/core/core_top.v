@@ -248,79 +248,79 @@ wire [15:0] snac_p4_btn;
 
 // Directly pass analog_video_type=0 (ACCENT_ACCENT=ACCENT_ACCENT) to disable video output (SNAC only for now)
 // Video output through the Analogizer can be wired up later if desired.
-openFPGA_Pocket_Analogizer #(
-    .MASTER_CLK_FREQ(50_000_000),
-    .LINE_LENGTH(400)
-) analogizer (
-    .i_clk(clk_74a),
-    .i_rst(~reset_n),
-    .i_ena(1'b1),
-    // Video interface (active but directly from our pipeline)
-    .video_clk(clk_core_12288),
-    .analog_video_type(4'h0),       // 0 = no analog video output
-    .R(vidout_rgb[23:16]),
-    .G(vidout_rgb[15:8]),
-    .B(vidout_rgb[7:0]),
-    .Hblank(~vidout_de),
-    .Vblank(vidout_vs),
-    .BLANKn(vidout_de),
-    .Hsync(vidout_hs),
-    .Vsync(vidout_vs),
-    .Csync(~(vidout_hs ^ vidout_vs)),
-    // Y/C encoder (unused)
-    .CHROMA_PHASE_INC(40'd0),
-    .PALFLAG(1'b0),
-    // Scandoubler (unused)
-    .ce_pix(1'b1),
-    .scandoubler(1'b0),
-    .fx(3'd0),
-    // SNAC controller interface
-    .conf_AB(analogizer_snac_type[5]),
-    .game_cont_type(analogizer_snac_type[4:0]),
-    .p1_btn_state(snac_p1_btn),
-    .p1_joy_state(snac_p1_joy),
-    .p2_btn_state(snac_p2_btn),
-    .p2_joy_state(snac_p2_joy),
-    .p3_btn_state(snac_p3_btn),
-    .p4_btn_state(snac_p4_btn),
-    // Rumble (unused)
-    .i_VIB_SW1(2'b0),
-    .i_VIB_DAT1(8'h0),
-    .i_VIB_SW2(2'b0),
-    .i_VIB_DAT2(8'h0),
-    // Status
-    .busy(),
-    // Cartridge port (directly driven by Analogizer)
-    .cart_tran_bank2(cart_tran_bank2),
-    .cart_tran_bank2_dir(cart_tran_bank2_dir),
-    .cart_tran_bank3(cart_tran_bank3),
-    .cart_tran_bank3_dir(cart_tran_bank3_dir),
-    .cart_tran_bank1(cart_tran_bank1),
-    .cart_tran_bank1_dir(cart_tran_bank1_dir),
-    .cart_tran_bank0(cart_tran_bank0),
-    .cart_tran_bank0_dir(cart_tran_bank0_dir),
-    .cart_tran_pin30(cart_tran_pin30),
-    .cart_tran_pin30_dir(cart_tran_pin30_dir),
-    .cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
-    .cart_tran_pin31(cart_tran_pin31),
-    .cart_tran_pin31_dir(cart_tran_pin31_dir),
-    // Debug
-    .DBG_TX(),
-    .o_stb()
-);
+// openFPGA_Pocket_Analogizer #(
+//     .MASTER_CLK_FREQ(50_000_000),
+//     .LINE_LENGTH(400)
+// ) analogizer (
+//     .i_clk(clk_74a),
+//     .i_rst(~reset_n),
+//     .i_ena(1'b1),
+//     // Video interface (active but directly from our pipeline)
+//     .video_clk(clk_core_12288),
+//     .analog_video_type(4'h0),       // 0 = no analog video output
+//     .R(vidout_rgb[23:16]),
+//     .G(vidout_rgb[15:8]),
+//     .B(vidout_rgb[7:0]),
+//     .Hblank(~vidout_de),
+//     .Vblank(vidout_vs),
+//     .BLANKn(vidout_de),
+//     .Hsync(vidout_hs),
+//     .Vsync(vidout_vs),
+//     .Csync(~(vidout_hs ^ vidout_vs)),
+//     // Y/C encoder (unused)
+//     .CHROMA_PHASE_INC(40'd0),
+//     .PALFLAG(1'b0),
+//     // Scandoubler (unused)
+//     .ce_pix(1'b1),
+//     .scandoubler(1'b0),
+//     .fx(3'd0),
+//     // SNAC controller interface
+//     .conf_AB(analogizer_snac_type[5]),
+//     .game_cont_type(analogizer_snac_type[4:0]),
+//     .p1_btn_state(snac_p1_btn),
+//     .p1_joy_state(snac_p1_joy),
+//     .p2_btn_state(snac_p2_btn),
+//     .p2_joy_state(snac_p2_joy),
+//     .p3_btn_state(snac_p3_btn),
+//     .p4_btn_state(snac_p4_btn),
+//     // Rumble (unused)
+//     .i_VIB_SW1(2'b0),
+//     .i_VIB_DAT1(8'h0),
+//     .i_VIB_SW2(2'b0),
+//     .i_VIB_DAT2(8'h0),
+//     // Status
+//     .busy(),
+//     // Cartridge port (directly driven by Analogizer)
+//     .cart_tran_bank2(cart_tran_bank2),
+//     .cart_tran_bank2_dir(cart_tran_bank2_dir),
+//     .cart_tran_bank3(cart_tran_bank3),
+//     .cart_tran_bank3_dir(cart_tran_bank3_dir),
+//     .cart_tran_bank1(cart_tran_bank1),
+//     .cart_tran_bank1_dir(cart_tran_bank1_dir),
+//     .cart_tran_bank0(cart_tran_bank0),
+//     .cart_tran_bank0_dir(cart_tran_bank0_dir),
+//     .cart_tran_pin30(cart_tran_pin30),
+//     .cart_tran_pin30_dir(cart_tran_pin30_dir),
+//     .cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
+//     .cart_tran_pin31(cart_tran_pin31),
+//     .cart_tran_pin31_dir(cart_tran_pin31_dir),
+//     // Debug
+//     .DBG_TX(),
+//     .o_stb()
+// );
 
 // Link port directions/data are driven by link_mmio below.
-assign port_tran_si = 1'bz;
-assign port_tran_si_dir = 1'b0;     // SI is input
-assign port_tran_so = link_so_oe ? link_so_out : 1'bz;
-assign port_tran_so_dir = link_so_oe;
-assign port_tran_sck = link_sck_oe ? link_sck_out : 1'bz;
-assign port_tran_sck_dir = link_sck_oe;
-assign port_tran_sd = link_sd_oe ? link_sd_out : 1'bz;
-assign port_tran_sd_dir = link_sd_oe;
-assign link_si_i = port_tran_si;
-assign link_sck_i = port_tran_sck;
-assign link_sd_i = port_tran_sd;
+// assign port_tran_si = 1'bz;
+// assign port_tran_si_dir = 1'b0;     // SI is input
+// assign port_tran_so = link_so_oe ? link_so_out : 1'bz;
+// assign port_tran_so_dir = link_so_oe;
+// assign port_tran_sck = link_sck_oe ? link_sck_out : 1'bz;
+// assign port_tran_sck_dir = link_sck_oe;
+// assign port_tran_sd = link_sd_oe ? link_sd_out : 1'bz;
+// assign port_tran_sd_dir = link_sd_oe;
+// assign link_si_i = port_tran_si;
+// assign link_sck_i = port_tran_sck;
+// assign link_sd_i = port_tran_sd;
 
 // PSRAM Controller for CRAM0 (16MB)
 // Uses muxed signals for bridge/CPU arbitration
@@ -1406,8 +1406,6 @@ assign video_hs = vidout_hs;
     reg [9:0]   x_count;
     reg [9:0]   y_count;
 
-    wire [9:0]  visible_x = x_count - VID_H_BPORCH;
-    wire [9:0]  visible_y = y_count - VID_V_BPORCH;
 
     reg [23:0]  vidout_rgb;
     reg         vidout_de, vidout_de_1;
@@ -1905,7 +1903,7 @@ assign video_hs = vidout_hs;
         .clk(clk_core_12288),
         .clk_cpu(clk_cpu),  // CPU clock for memory interface (100 MHz)
         .reset_n(reset_n),
-        .pixel_x(visible_x),
+        .pixel_x({visible_x[9],visible_x[9:1]}), //RndMnkIII: For CRT I doubled the x resolution
         .pixel_y(visible_y),
         .pixel_color(terminal_pixel_color),
         .mem_valid(term_mem_valid),
@@ -1939,7 +1937,7 @@ assign video_hs = vidout_hs;
     wire        video_burst_data_valid;
     wire        video_burst_data_done;
 
-    video_scanout_indexed scanout (
+    video_CRT_scanout_indexed scanout (
         // Video clock domain (12.288 MHz)
         .clk_video(clk_core_12288),
         .reset_n(reset_n),
@@ -1964,6 +1962,28 @@ assign video_hs = vidout_hs;
         .pal_data(cpu_pal_data)
     );
 
+
+
+// ---  CRT 15.7kHz / 60Hz Parameters ---
+localparam CRT_V_TOTAL  = CRT_V_SYNC + CRT_V_BPORCH + CRT_V_ACTIVE + CRT_V_FPORCH;
+localparam CRT_V_SYNC   = 3;
+localparam CRT_V_BPORCH = 15;
+localparam CRT_V_FPORCH = 4;
+localparam CRT_V_ACTIVE = 240;
+localparam CRT_H_TOTAL  = CRT_H_SYNC + CRT_H_BPORCH + CRT_H_ACTIVE + CRT_H_FPORCH;
+localparam CRT_H_SYNC   = 58;
+localparam CRT_H_BPORCH = 62;
+localparam CRT_H_FPORCH = 20;
+localparam CRT_H_ACTIVE = 640;
+reg crt_hs, crt_vs, crt_de;
+reg crt_hblank, crt_vblank;
+wire crt_csync;
+wire crt_blankn;
+
+
+wire [9:0]  visible_x = x_count - CRT_H_SYNC - CRT_H_BPORCH;
+wire [9:0]  visible_y = y_count - CRT_V_SYNC - CRT_V_BPORCH;
+
 always @(posedge clk_core_12288 or negedge reset_n) begin
 
     if(~reset_n) begin
@@ -1982,16 +2002,27 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
 
         // x and y counters
         x_count <= x_count + 1'b1;
-        if(x_count == VID_H_TOTAL-1) begin
+        if(x_count == CRT_H_TOTAL-1) begin
             x_count <= 0;
 
             y_count <= y_count + 1'b1;
-            if(y_count == VID_V_TOTAL-1) begin
+            if(y_count == CRT_V_TOTAL-1) begin
                 y_count <= 0;
             end
         end
 
-        // generate sync
+        // CRT Blank
+        crt_hblank <= x_count < (CRT_H_SYNC + CRT_H_BPORCH) || (x_count >= CRT_H_SYNC + CRT_H_BPORCH + CRT_H_ACTIVE);
+        crt_vblank <= y_count < (CRT_V_SYNC + CRT_V_BPORCH) || (y_count >= CRT_V_SYNC + CRT_V_BPORCH + CRT_V_ACTIVE);
+
+        // Generate CRT sync
+        // --- Generación de Syncs (Lógica Negativa) ---
+
+        crt_hs <= (x_count >= 0) && (x_count < CRT_H_SYNC);
+        crt_vs <= (y_count >= 0) && (y_count < CRT_V_SYNC);
+
+
+        // Generate Pocket sync
         if(x_count == 0 && y_count == 0) begin
             // sync signal in back porch
             // new frame
@@ -2007,10 +2038,11 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
 
         // inactive screen areas are black
         vidout_rgb <= 24'h0;
-        // generate active video
-        if(x_count >= VID_H_BPORCH && x_count < VID_H_ACTIVE+VID_H_BPORCH) begin
 
-            if(y_count >= VID_V_BPORCH && y_count < VID_V_ACTIVE+VID_V_BPORCH) begin
+        // generate active video, now accounts for CRT specific timings but making compatible with Analogue Pocket video also
+        if(x_count >= CRT_H_SYNC + CRT_H_BPORCH  && x_count < CRT_H_SYNC + CRT_H_BPORCH + CRT_H_ACTIVE) begin
+
+            if(y_count >= CRT_V_SYNC + CRT_V_BPORCH && y_count < CRT_V_SYNC + CRT_V_BPORCH + CRT_V_ACTIVE) begin
                 // data enable. this is the active region of the line
                 vidout_de <= 1;
 
@@ -2030,8 +2062,70 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
     end
 end
 
+assign crt_csync = ~(crt_hs ^ crt_vs);
+assign crt_blankn   = ~(crt_hblank | crt_vblank);
+
+wire [5:0] crt_r, crt_g, crt_b;
+assign crt_r = framebuffer_pixel_color[23:18];
+assign crt_g = framebuffer_pixel_color[15:10];
+assign crt_b = framebuffer_pixel_color[7:2];
+
+// ANALOGIZER_DE = ~(HBL || VBL);
+
+//Analogizer support for RGBS output
+//BK3
+assign cart_tran_bank3         = {crt_r[5:0],crt_csync,1'b1};                          //on reset state set ouput value to 8'hZ
+assign cart_tran_bank3_dir     = 1'b1;                                     //on reset state set pin dir to input
+//BK2
+assign cart_tran_bank2         = {crt_b[0],crt_blankn,crt_g[5:0]};                          //on reset state set ouput value to 8'hZ
+assign cart_tran_bank2_dir     =  1'b1;                                     //on reset state set pin dir to input
+//BK1
+assign cart_tran_bank1         =  {2'b00,clk_core_12288,crt_b[5:1]};      //on reset state set ouput value to 8'hZ
+assign cart_tran_bank1_dir     =  1'b1;                                     //on reset state set pin dir to input
+//BK0
+// assign cart_tran_bank0[7]         = 1'bZZZZ;
+// assign cart_tran_bank0_dir     = 1'b1;   
+// //PIN30
+// assign cart_tran_pin30         = 1'bZ;
+// assign cart_tran_pin30_dir     = 1'b0;                              
+// assign cart_pin30_pwroff_reset = 1'b0;                                      //1'b1 (GPIO USE)
+// //PIN31
+// assign cart_tran_pin31         =  1'bZ; 
+// assign cart_tran_pin31_dir     =  1'b0;       
 
 
+
+//SERIAL PORT Control
+//for use SNAC SERIAL -> use USB3 Type A Male-Male Tx-Rx crossed cable
+wire SNAC_SERIAL = 1'b1;
+
+assign port_tran_si = 1'bz;
+assign port_tran_si_dir = 1'b0;     // SI is input
+//SNAC ALTERNATIVE (CONFIG. B Rx-) 
+assign cart_tran_pin30         = 1'bZ;
+assign cart_tran_pin30_dir     = 1'b0;                              
+assign cart_pin30_pwroff_reset = 1'b1;  //1'b1 (GPIO USE)
+
+assign port_tran_so = link_so_oe ? link_so_out : 1'bz;
+assign port_tran_so_dir = link_so_oe;
+//SNAC ALTERNATIVE (CONFIG. B Tx-)
+assign cart_tran_pin31         =  link_so_oe ? link_so_out : 1'bz;
+assign cart_tran_pin31_dir     =  link_so_oe;   
+
+assign port_tran_sck = link_sck_oe ? link_sck_out : 1'bz;
+assign port_tran_sck_dir = link_sck_oe;
+//SNAC ALTERNATIVE (CONFIG. B GND_Drain bank0[6])
+assign cart_tran_bank0[6]      = link_sck_oe ? link_sck_out : 1'bz;
+assign cart_tran_bank0_dir     = link_sck_oe;   
+
+//SD is not used
+assign port_tran_sd = link_sd_oe ? link_sd_out : 1'bz;
+assign port_tran_sd_dir = link_sd_oe;
+//NOT NEEDED FOR SNAC
+
+assign link_si_i  = (SNAC_SERIAL)?  cart_tran_pin30    : port_tran_si;
+assign link_sck_i = (SNAC_SERIAL)?  cart_tran_bank0[6] : port_tran_sck;
+assign link_sd_i  = port_tran_sd;
 
 //
 // Link MMIO peripheral (FIFO + synchronous SCK/SO/SI PHY)
