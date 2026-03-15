@@ -240,12 +240,12 @@ assign bridge_endian_little = 1;
 
 //Pocket Menu settings
 reg [31:0] analogizer_settings;
-//wire [31:0] analogizer_settings_s;
 
 reg analogizer_ena;
 reg [3:0] analogizer_video_type;
 reg [4:0] snac_game_cont_type /* synthesis keep */;
 reg [3:0] snac_cont_assignment /* synthesis keep */;
+
 
 //synch_3 #(.WIDTH(32)) sync_analogizer(analogizer_settings, analogizer_settings_s, clk_core_49152);
 
@@ -256,12 +256,31 @@ always @(*) begin
   snac_game_cont_type   = analogizer_settings[4:0];
   snac_cont_assignment  = analogizer_settings[9:6];
   analogizer_video_type = analogizer_settings[13:10];
+  analogizer_ena        = analogizer_settings[15];
 end 
+
+wire pocket_blank_screen = analogizer_settings[13] && analogizer_ena;
+
+
+//create aditional switch to blank Pocket screen.
+wire [23:0] video_rgb_quake;
+
+assign video_rgb_quake = (pocket_blank_screen) ? 24'h000000: vidout_rgb;
+
+
+reg [2:0] fx /* synthesis preserve */;
+always @(posedge clk_core_49152) begin
+    case (analogizer_video_type)
+        4'd5, 4'd13:    begin fx <= 3'd0; end //SC  0%     1 SC 25%
+        4'd6, 4'd14:    begin fx <= 3'd2; end //SC  50%    3 SC 75%
+        4'd7, 4'd15:    begin fx <= 3'd4; end //hq2x
+        default:        begin fx <= 3'd0; end
+    endcase
+end
 
 //use PSX Dual Shock style left analog stick as directional pad
 wire is_analog_input = (snac_game_cont_type == 5'h13);
-// Interact variable: SNAC adapter type (bridge address 0xF0000000)
-reg [31:0] analogizer_snac_type;
+
 wire [15:0] snac_p1_btn;
 wire [31:0] snac_p1_joy;
 wire [15:0] snac_p2_btn;
@@ -293,17 +312,51 @@ assign CHROMA_PHASE_INC = ((analogizer_video_type == 4'h4)|| (analogizer_video_t
 assign PALFLAG = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC); 
 
 
-// Directly pass analog_video_type=0 (ACCENT_ACCENT=ACCENT_ACCENT) to disable video output (SNAC only for now)
-// Video output through the Analogizer can be wired up later if desired.
+// H/V offset
+reg [31:0] signed_hoff;
+reg [31:0] signed_voff;
+
+wire [5:0]	hoffset = signed_hoff[5:0];
+wire  [4:0]	voffset = signed_voff[4:0];
+wire video_ce_pix, half_ce_pix;
+
+jtframe_frac_cen #(.W(2)) pixel_cen
+(
+    .clk(clk_core_49152),
+    .n(10'd1),
+    .m(10'd4),
+    .cen({video_ce_pix,half_ce_pix})
+);
+wire HSync,VSync;
+jtframe_resync jtframe_resync
+(
+    .clk(clk_core_49152),
+    .pxl_cen(video_ce_pix),
+    .hs_in(crt_hs),
+    .vs_in(crt_vs),
+    .LVBL(crt_vblank),
+    .LHBL(crt_hblank),
+    .hoffset(hoffset), //5bits signed
+    .voffset(voffset), //5bits signed
+    .hs_out(HSync),
+    .vs_out(VSync)
+);
+
+wire crt_csync;
+wire crt_blankn;
+
+assign crt_csync = ~(HSync ^ VSync);
+assign crt_blankn   = ~(crt_hblank | crt_vblank);
+
 openFPGA_Pocket_Analogizer #(
     .MASTER_CLK_FREQ(49_152_000),
     .LINE_LENGTH(640)
 ) analogizer (
     .i_clk(clk_core_49152), //currently 50MHz
     .i_rst(~reset_n),
-    .i_ena(1'b1),
+    .i_ena(analogizer_ena),
     // Video interface (active but directly from our pipeline)
-    .video_clk(clk_core_12288), ////currently 12.25MHz
+    .video_clk(clk_core_12288), ////currently 12.288MHz
     .analog_video_type(analogizer_video_type),       // 0 RGBS
     .R(vidout_rgb[23:16]),
     .G(vidout_rgb[15:8]),
@@ -311,16 +364,16 @@ openFPGA_Pocket_Analogizer #(
     .Hblank(crt_hblank),
     .Vblank(crt_vblank),
     .BLANKn(crt_blankn),
-    .Hsync(crt_hs),
-    .Vsync(crt_vs),
+    .Hsync(HSync),
+    .Vsync(VSync),
     .Csync(crt_csync ),
     // Y/C encoder (unused)
     .CHROMA_PHASE_INC(CHROMA_PHASE_INC),
     .PALFLAG(PALFLAG),
     // Scandoubler (unused)
-    .ce_pix(1'b1),
-    .scandoubler(1'b0),
-    .fx(3'd0), //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
+    .ce_pix(video_ce_pix),
+    .scandoubler(1'b1),
+    .fx(fx), //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
     // SNAC controller interface
     .conf_AB(snac_game_cont_type >= 5'd16),  //0 conf. A(default), 1 conf. B (see graph above)
     .game_cont_type(snac_game_cont_type),
@@ -942,7 +995,15 @@ always @(*) begin
     end
     32'hF7000000: begin 
         bridge_rd_data <= {analogizer_settings[7:0],analogizer_settings[15:8],analogizer_settings[23:16],analogizer_settings[31:24]};
-      end
+    end
+    32'hF7000004: begin 
+        //the byte order is inverted because the bridge_endian_little = 1
+        bridge_rd_data <= {signed_hoff[7:0],signed_hoff[15:8],signed_hoff[23:16],signed_hoff[31:24]}; //signed_hoff;
+    end
+    32'hF7000008: begin 
+        //the byte order is inverted because the bridge_endian_little = 1
+        bridge_rd_data <= {signed_voff[7:0],signed_voff[15:8],signed_voff[23:16],signed_voff[31:24]}; //signed_voff;
+    end
     32'hF8xxxxxx: begin
         bridge_rd_data <= cmd_bridge_rd_data;
     end
@@ -952,7 +1013,7 @@ always @(*) begin
     endcase
 end
 
-// Interact variable writes (SNAC adapter type + game mode from APF menu/instance)
+// Interact variable writes (SNAC settings + game mode from APF menu/instance)
 // memory_writes must use 0xF0xxxxxx addresses (bridge clk_74a domain, not SDRAM path).
 // NeoGeo core uses the same pattern for per-game configuration.
 reg [31:0] game_mode_reg;     // 0xF0000010: 0=base, 1=game, 2=hipnotic, 3=rogue
@@ -965,15 +1026,24 @@ wire [31:0] bridge_wr_data_le = {bridge_wr_data[7:0], bridge_wr_data[15:8],
                                   bridge_wr_data[23:16], bridge_wr_data[31:24]};
 
 always @(posedge clk_74a) begin
-    if (bridge_wr && bridge_addr[31:24] == 8'hF0) begin
-        case (bridge_addr[7:0])
-            8'h00: analogizer_snac_type <= bridge_wr_data;
-            8'h10: game_mode_reg   <= bridge_wr_data_le;
-            8'h14: game_name_0_reg <= bridge_wr_data_le;
-            8'h18: game_name_1_reg <= bridge_wr_data_le;
-            8'h1C: game_name_2_reg <= bridge_wr_data_le;
-            default: ;
-        endcase
+    if (bridge_wr) begin
+        if(bridge_addr[31:24] == 8'hF0) begin
+            case (bridge_addr[7:0])
+                8'h10: game_mode_reg   <= bridge_wr_data_le;
+                8'h14: game_name_0_reg <= bridge_wr_data_le;
+                8'h18: game_name_1_reg <= bridge_wr_data_le;
+                8'h1C: game_name_2_reg <= bridge_wr_data_le;
+                default: ;
+            endcase
+        end
+        //Analogizer settings 0xF70000xx address
+        else if(bridge_addr[31:24] == 8'hF7) begin
+            case (bridge_addr[7:0])
+                8'h00: analogizer_settings <= {bridge_wr_data[7:0],bridge_wr_data[15:8],bridge_wr_data[23:16],bridge_wr_data[31:24]};
+                8'h04: signed_hoff         <= {bridge_wr_data[7:0],bridge_wr_data[15:8],bridge_wr_data[23:16],bridge_wr_data[31:24]};
+                8'h08: signed_voff         <= {bridge_wr_data[7:0],bridge_wr_data[15:8],bridge_wr_data[23:16],bridge_wr_data[31:24]};
+            endcase
+        end
     end
 end
 
@@ -1572,7 +1642,7 @@ core_bridge_cmd icb (
 
 assign video_rgb_clock = clk_core_12288;
 assign video_rgb_clock_90 = clk_core_12288_90deg;
-assign video_rgb = vidout_rgb;
+assign video_rgb = video_rgb_quake;
 assign video_de = vidout_de;
 assign video_skip = vidout_skip;
 assign video_vs = vidout_vs;
@@ -2199,9 +2269,6 @@ localparam CRT_H_FPORCH = 20;
 localparam CRT_H_ACTIVE = 640;
 reg crt_hs, crt_vs, crt_de;
 reg crt_hblank, crt_vblank;
-wire crt_csync;
-wire crt_blankn;
-
 
 wire [9:0]  visible_x = x_count - CRT_H_SYNC - CRT_H_BPORCH;
 wire [9:0]  visible_y = y_count - CRT_V_SYNC - CRT_V_BPORCH;
@@ -2238,8 +2305,6 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
         crt_vblank <= y_count < (CRT_V_SYNC + CRT_V_BPORCH) || (y_count >= CRT_V_SYNC + CRT_V_BPORCH + CRT_V_ACTIVE);
 
         // Generate CRT sync
-        // --- Generación de Syncs (Lógica Negativa) ---
-
         crt_hs <= (x_count >= 0) && (x_count < CRT_H_SYNC);
         crt_vs <= (y_count >= 0) && (y_count < CRT_V_SYNC);
 
@@ -2283,9 +2348,6 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
         end
     end
 end
-
-assign crt_csync = ~(crt_hs ^ crt_vs);
-assign crt_blankn   = ~(crt_hblank | crt_vblank);
 
 //
 // Link MMIO peripheral (FIFO + synchronous SCK/SO/SI PHY)

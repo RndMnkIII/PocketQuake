@@ -308,7 +308,7 @@ set_global_assignment -name CRC_ERROR_OPEN_DRAIN ON
 set_global_assignment -name ACTIVE_SERIAL_CLOCK FREQ_100MHZ
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
 set_global_assignment -name ROUTER_TIMING_OPTIMIZATION_LEVEL MAXIMUM
-set_global_assignment -name SEED 1
+set_global_assignment -name SEED 19
 
 # Assembler Assignments
 # =====================
@@ -792,6 +792,10 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to bridge_spimosi
 # periph_sdram_mux.v removed — replaced by axi_sdram_arbiter + axi_word_master
 
 
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+
+set_global_assignment -name VERILOG_FILE core/jtframe_resync.v
+set_global_assignment -name VERILOG_FILE core/jtframe_frac_cen.v
 set_global_assignment -name VERILOG_FILE analogizer/rgb2YPbPr.v
 set_global_assignment -name VERILOG_FILE core/video_CRT_scanout_indexed_BRAM.v
 set_global_assignment -name QIP_FILE analogizer/analogizer.qip
@@ -815,7 +819,7 @@ set_global_assignment -name VERILOG_FILE core/mf_pllram_133.v
 set_global_assignment -name VERILOG_FILE core/psram_controller.v
 set_global_assignment -name VERILOG_FILE core/sram_controller.v
 set_global_assignment -name VERILOG_FILE core/sram_fill.v
-set_global_assignment -name VERILOG_FILE core/calc_gradients.v
+set_global_assignment -name VERILOG_FILE core/scanline_engine.v
 set_global_assignment -name SYSTEMVERILOG_FILE core/psram.sv
 set_global_assignment -name VERILOG_FILE core/mf_linebuf.v
 set_global_assignment -name VERILOG_FILE vexriscv/VexiiRiscv_Full.v
@@ -831,4 +835,3 @@ set_global_assignment -name VERILOG_FILE core/alias_transform_mac.v
 set_global_assignment -name VERILOG_FILE core/audio_output.v
 set_global_assignment -name VERILOG_FILE core/link_mmio.v
 set_global_assignment -name QIP_FILE analogizer/analogizer/analogizer.qip
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
