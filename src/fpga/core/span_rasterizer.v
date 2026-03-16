@@ -642,7 +642,7 @@ reg [15:0] s_int_eff_r, t_int_eff_r;
 // Registered texture byte address: combines multiply (t * width), s offset,
 // and tex base address into a single pipeline register. Uses pipelined s/t_int_eff_r
 // to break the span_reg_wr → mux → DSP critical path (~2.5ns improvement).
-wire [31:0] t_times_w = t_int_eff_r * cur_tex_width;
+(* multstyle = "dsp" *) wire [31:0] t_times_w = t_int_eff_r * cur_tex_width;
 wire [31:0] tex_byte_addr_comb = t_times_w + {16'd0, s_int_eff_r} + cur_tex_addr;
 reg  [31:0] tex_byte_addr_r;
 wire [23:0] tex_word_addr = tex_byte_addr_r[25:2];

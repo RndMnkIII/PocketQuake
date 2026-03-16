@@ -436,10 +436,10 @@ reg        bcr_init_done = 0;
 
 // Raw psram.sv busy (for BCR init FSM — bypasses word_busy)
 wire        psram_raw_busy;
-wire        psram_dbg_wait_seen;
-wire [15:0] psram_dbg_wait_cycles;
-wire [15:0] psram_dbg_burst_count;
-wire [15:0] psram_dbg_stale_count;
+wire        psram_dbg_wait_seen  = 1'b0;
+wire [15:0] psram_dbg_wait_cycles = 16'd0;
+wire [15:0] psram_dbg_burst_count = 16'd0;
+wire [15:0] psram_dbg_stale_count = 16'd0;
 
 // Sync burst read signals (psram_controller ↔ axi_psram_slave)
 wire        psram_burst_rd;
@@ -477,11 +477,11 @@ psram_controller #(
     // Raw psram.sv busy (for BCR init FSM)
     .raw_busy(psram_raw_busy),
 
-    // Debug pass-through
-    .dbg_wait_seen(psram_dbg_wait_seen),
-    .dbg_wait_cycles(psram_dbg_wait_cycles),
-    .dbg_burst_count(psram_dbg_burst_count),
-    .dbg_stale_count(psram_dbg_stale_count),
+    // Debug pass-through (disconnected)
+    .dbg_wait_seen(),
+    .dbg_wait_cycles(),
+    .dbg_burst_count(),
+    .dbg_stale_count(),
 
     // Physical PSRAM signals (cram0_clk driven by PLL, not psram.sv)
     .cram_a(cram0_a),
@@ -923,17 +923,9 @@ sram_fill sram_fill_inst (
     .active(fill_active)
 );
 
-// calc_gradients replaces scanline_engine — FP32 D_CalcGradients in hardware
-calc_gradients calc_gradients_inst (
-    .clk(clk_ram_controller),
-    .reset_n(reset_n),
-    .reg_wr(scanline_reg_wr),
-    .reg_rd(scanline_reg_rd),
-    .reg_addr(scanline_reg_addr),
-    .reg_wdata(scanline_reg_wdata),
-    .reg_rdata(scanline_reg_rdata),
-    .busy_o()
-);
+// calc_gradients removed — CPU FPU (rv32f) is faster than MMIO accelerator
+// (~120 cycles via fmul.s/fadd.s vs ~210 cycles via 30 MMIO writes + 50 HW cycles + 10 reads)
+assign scanline_reg_rdata = 32'd0;
 
 // 3-way SRAM word arbitration mux (combinational priority)
 // Priority: CPU > Span rasterizer > sram_fill
@@ -1000,7 +992,7 @@ always @(*) begin
         //the byte order is inverted because the bridge_endian_little = 1
         bridge_rd_data <= {signed_hoff[7:0],signed_hoff[15:8],signed_hoff[23:16],signed_hoff[31:24]}; //signed_hoff;
     end
-    32'hF7000008: begin 
+    32'hF7000008: begin
         //the byte order is inverted because the bridge_endian_little = 1
         bridge_rd_data <= {signed_voff[7:0],signed_voff[15:8],signed_voff[23:16],signed_voff[31:24]}; //signed_voff;
     end
@@ -1685,11 +1677,11 @@ assign video_hs = vidout_hs;
 
     // VexiiRiscv CPU system - running at 100 MHz (CPU + memory)
     // Pure bus routing: VexiiRiscv → arbiter → {SDRAM, PSRAM, Local} AXI4 masters
-    // CPU performance counters
-    wire [31:0] cpu_perf_icache_miss;
-    wire [31:0] cpu_perf_dcache_miss;
-    wire [31:0] cpu_perf_icache_stall;
-    wire [31:0] cpu_perf_dcache_stall;
+    // CPU performance counters (not available from cpu_system, stub for sysreg)
+    wire [31:0] cpu_perf_icache_miss  = 32'd0;
+    wire [31:0] cpu_perf_dcache_miss  = 32'd0;
+    wire [31:0] cpu_perf_icache_stall = 32'd0;
+    wire [31:0] cpu_perf_dcache_stall = 32'd0;
 
     cpu_system cpu (
         .clk(clk_cpu),  // 100 MHz
@@ -1754,11 +1746,7 @@ assign video_hs = vidout_hs;
         .m_local_wlast(cpu_m_local_wlast),
         .m_local_bvalid(cpu_m_local_bvalid),
         .m_local_bresp(cpu_m_local_bresp),
-        .timer_irq(timer_irq),
-        .perf_icache_miss(cpu_perf_icache_miss),
-        .perf_dcache_miss(cpu_perf_dcache_miss),
-        .perf_icache_stall(cpu_perf_icache_stall),
-        .perf_dcache_stall(cpu_perf_dcache_stall)
+        .timer_irq(timer_irq)
     );
 
     // AXI4 peripheral slave: BRAM, colormap, system registers, CDC, terminal,
@@ -2273,6 +2261,7 @@ reg crt_hblank, crt_vblank;
 wire [9:0]  visible_x = x_count - CRT_H_SYNC - CRT_H_BPORCH;
 wire [9:0]  visible_y = y_count - CRT_V_SYNC - CRT_V_BPORCH;
 
+
 always @(posedge clk_core_12288 or negedge reset_n) begin
 
     if(~reset_n) begin
@@ -2326,19 +2315,15 @@ always @(posedge clk_core_12288 or negedge reset_n) begin
         // inactive screen areas are black
         vidout_rgb <= 24'h0;
 
-        // generate active video, now accounts for CRT specific timings but making compatible with Analogue Pocket video also
+        // generate active video
         if(x_count >= CRT_H_SYNC + CRT_H_BPORCH  && x_count < CRT_H_SYNC + CRT_H_BPORCH + CRT_H_ACTIVE) begin
 
             if(y_count >= CRT_V_SYNC + CRT_V_BPORCH && y_count < CRT_V_SYNC + CRT_V_BPORCH + CRT_V_ACTIVE) begin
-                // data enable. this is the active region of the line
                 vidout_de <= 1;
 
-                // Display mode: 0=terminal overlay, 1=framebuffer only
                 if (display_mode) begin
-                    // Framebuffer only mode
                     vidout_rgb <= framebuffer_pixel_color;
                 end else begin
-                    // Terminal overlay mode - white text overlays framebuffer
                     if (terminal_pixel_color == 24'hFFFFFF)
                         vidout_rgb <= terminal_pixel_color;
                     else

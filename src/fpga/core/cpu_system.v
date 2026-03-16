@@ -333,6 +333,25 @@ wire mem_bvalid  = (target_mem == TGT_SDRAM) ? m_sdram_bvalid :
                                                m_local_bvalid;
 
 // ============================================
+// Address decode — shared combinational logic (avoids duplicating comparators)
+// ============================================
+function [1:0] addr_decode;
+    input [31:0] addr;
+    begin
+        if (addr[31:26] == 6'b000100 || addr[31:26] == 6'b010100)
+            addr_decode = TGT_SDRAM;
+        else if (addr[31:27] == 5'b00110)
+            addr_decode = TGT_PSRAM;
+        else
+            addr_decode = TGT_LOCAL;
+    end
+endfunction
+
+wire [1:0] lsu_ar_target = addr_decode(lsu_ar_addr);
+wire [1:0] lsu_aw_target = addr_decode(lsu_aw_addr);
+wire [1:0] fetch_ar_target = addr_decode(fetch_ar_addr);
+
+// ============================================
 // Main FSM
 // ============================================
 always @(posedge clk or posedge reset) begin
@@ -443,24 +462,14 @@ always @(posedge clk or posedge reset) begin
                 burst_count <= 0;
                 last_grant_lsu <= 1;
 
-                // Issue AR to target slave
+                // Issue AR to target slave (using pre-decoded target)
                 fsm_state <= FSM_MEM_AR;
-                if (lsu_ar_addr[31:26] == 6'b000100 || lsu_ar_addr[31:26] == 6'b010100) begin
-                    target_mem <= TGT_SDRAM;
-                    m_sdram_arvalid <= 1;
-                    m_sdram_araddr <= lsu_ar_addr;
-                    m_sdram_arlen <= lsu_ar_len;
-                end else if (lsu_ar_addr[31:27] == 5'b00110) begin
-                    target_mem <= TGT_PSRAM;
-                    m_psram_arvalid <= 1;
-                    m_psram_araddr <= lsu_ar_addr;
-                    m_psram_arlen <= lsu_ar_len;
-                end else begin
-                    target_mem <= TGT_LOCAL;
-                    m_local_arvalid <= 1;
-                    m_local_araddr <= lsu_ar_addr;
-                    m_local_arlen <= lsu_ar_len;
-                end
+                target_mem <= lsu_ar_target;
+                case (lsu_ar_target)
+                    TGT_SDRAM: begin m_sdram_arvalid <= 1; m_sdram_araddr <= lsu_ar_addr; m_sdram_arlen <= lsu_ar_len; end
+                    TGT_PSRAM: begin m_psram_arvalid <= 1; m_psram_araddr <= lsu_ar_addr; m_psram_arlen <= lsu_ar_len; end
+                    default:   begin m_local_arvalid <= 1; m_local_araddr <= lsu_ar_addr; m_local_arlen <= lsu_ar_len; end
+                endcase
 
             end else if (lsu_wr_grant) begin
                 // Accept LsuL1 write address (AW channel)
@@ -473,13 +482,8 @@ always @(posedge clk or posedge reset) begin
                 burst_count <= 0;
                 last_grant_lsu <= 1;
 
-                // Determine target
-                if (lsu_aw_addr[31:26] == 6'b000100 || lsu_aw_addr[31:26] == 6'b010100)
-                    target_mem <= TGT_SDRAM;
-                else if (lsu_aw_addr[31:27] == 5'b00110)
-                    target_mem <= TGT_PSRAM;
-                else
-                    target_mem <= TGT_LOCAL;
+                // Determine target (using pre-decoded target)
+                target_mem <= lsu_aw_target;
 
                 // Also accept W if valid on same cycle
                 if (lsu_w_valid) begin
@@ -487,21 +491,13 @@ always @(posedge clk or posedge reset) begin
                     req_wdata_r <= lsu_w_data;
                     req_wstrb_r <= lsu_w_strb;
 
-                    // Issue AW to target slave
+                    // Issue AW to target slave (using pre-decoded target)
                     fsm_state <= FSM_MEM_AW;
-                    if (lsu_aw_addr[31:26] == 6'b000100 || lsu_aw_addr[31:26] == 6'b010100) begin
-                        m_sdram_awvalid <= 1;
-                        m_sdram_awaddr <= lsu_aw_addr;
-                        m_sdram_awlen <= lsu_aw_len;
-                    end else if (lsu_aw_addr[31:27] == 5'b00110) begin
-                        m_psram_awvalid <= 1;
-                        m_psram_awaddr <= lsu_aw_addr;
-                        m_psram_awlen <= lsu_aw_len;
-                    end else begin
-                        m_local_awvalid <= 1;
-                        m_local_awaddr <= lsu_aw_addr;
-                        m_local_awlen <= lsu_aw_len;
-                    end
+                    case (lsu_aw_target)
+                        TGT_SDRAM: begin m_sdram_awvalid <= 1; m_sdram_awaddr <= lsu_aw_addr; m_sdram_awlen <= lsu_aw_len; end
+                        TGT_PSRAM: begin m_psram_awvalid <= 1; m_psram_awaddr <= lsu_aw_addr; m_psram_awlen <= lsu_aw_len; end
+                        default:   begin m_local_awvalid <= 1; m_local_awaddr <= lsu_aw_addr; m_local_awlen <= lsu_aw_len; end
+                    endcase
                 end else begin
                     // W not ready yet - wait for it
                     fsm_state <= FSM_WRITE_NEXT;
@@ -518,24 +514,14 @@ always @(posedge clk or posedge reset) begin
                 burst_count <= 0;
                 last_grant_lsu <= 0;
 
-                // Issue AR to target slave
+                // Issue AR to target slave (using pre-decoded target)
                 fsm_state <= FSM_MEM_AR;
-                if (fetch_ar_addr[31:26] == 6'b000100 || fetch_ar_addr[31:26] == 6'b010100) begin
-                    target_mem <= TGT_SDRAM;
-                    m_sdram_arvalid <= 1;
-                    m_sdram_araddr <= fetch_ar_addr;
-                    m_sdram_arlen <= fetch_ar_len;
-                end else if (fetch_ar_addr[31:27] == 5'b00110) begin
-                    target_mem <= TGT_PSRAM;
-                    m_psram_arvalid <= 1;
-                    m_psram_araddr <= fetch_ar_addr;
-                    m_psram_arlen <= fetch_ar_len;
-                end else begin
-                    target_mem <= TGT_LOCAL;
-                    m_local_arvalid <= 1;
-                    m_local_araddr <= fetch_ar_addr;
-                    m_local_arlen <= fetch_ar_len;
-                end
+                target_mem <= fetch_ar_target;
+                case (fetch_ar_target)
+                    TGT_SDRAM: begin m_sdram_arvalid <= 1; m_sdram_araddr <= fetch_ar_addr; m_sdram_arlen <= fetch_ar_len; end
+                    TGT_PSRAM: begin m_psram_arvalid <= 1; m_psram_araddr <= fetch_ar_addr; m_psram_arlen <= fetch_ar_len; end
+                    default:   begin m_local_arvalid <= 1; m_local_araddr <= fetch_ar_addr; m_local_arlen <= fetch_ar_len; end
+                endcase
 
             end else if (io_grant) begin
                 // Accept IO bus command (single-beat)

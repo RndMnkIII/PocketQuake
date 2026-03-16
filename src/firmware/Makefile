@@ -1,8 +1,8 @@
 # PocketQuake Firmware Makefile
 # Builds bootloader (BRAM) + Quake engine (SDRAM)
 
-# Toolchain
-CROSS ?= riscv64-unknown-elf-
+# Toolchain: auto-detect prefix (riscv64-elf- or riscv64-unknown-elf-)
+CROSS ?= $(if $(shell which riscv64-unknown-elf-gcc 2>/dev/null),riscv64-unknown-elf-,riscv64-elf-)
 CC = $(CROSS)gcc
 AS = $(CROSS)gcc
 LD = $(CROSS)gcc

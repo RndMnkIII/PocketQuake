@@ -93,6 +93,26 @@ config_relaxedBranch() {
     echo "${BASE_FLAGS[@]} --relaxed-branch"
 }
 
+config_rlxBr_tagsAsync() {
+    echo "${BASE_FLAGS[@]} --relaxed-branch --fetch-l1-tags-read-async"
+}
+
+config_rlxBr_icache256() {
+    echo "${BASE_FLAGS[@]} --relaxed-branch" | sed 's/--fetch-l1-sets=512/--fetch-l1-sets=256/'
+}
+
+config_rlxBr_icache256_tagsAsync() {
+    echo "${BASE_FLAGS[@]} --relaxed-branch --fetch-l1-tags-read-async" | sed 's/--fetch-l1-sets=512/--fetch-l1-sets=256/'
+}
+
+config_rlxBr_icache256_btb256_gsh2k() {
+    echo "${BASE_FLAGS[@]} --relaxed-branch --gshare-bytes=2048" | sed 's/--fetch-l1-sets=512/--fetch-l1-sets=256/' | sed 's/--btb-sets=512/--btb-sets=256/'
+}
+
+config_rlxBr_btb256_gsh2k() {
+    echo "${BASE_FLAGS[@]} --relaxed-branch --gshare-bytes=2048" | sed 's/--btb-sets=512/--btb-sets=256/'
+}
+
 config_relaxedDiv() {
     echo "${BASE_FLAGS[@]} --relaxed-div"
 }
