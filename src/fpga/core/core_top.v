@@ -276,7 +276,11 @@ always @(posedge clk_core_49152) begin
 end
 
 //use PSX Dual Shock style left analog stick as directional pad
-wire is_analog_input = (snac_game_cont_type == 5'h13);
+// is_analog_input covers both GC_PSX_ANALOG (0x12) and GC_PSX_ANALOG_FAST (0x13)
+wire is_analog_input = (snac_game_cont_type == 5'h12) || (snac_game_cont_type == 5'h13);
+
+// analogizer_settings[20]: PSX vibration motor enable (menu-controlled)
+wire psx_vib_en = analogizer_settings[20];
 
 wire [15:0] snac_p1_btn;
 wire [31:0] snac_p1_joy;
@@ -381,7 +385,10 @@ openFPGA_Pocket_Analogizer #(
     .p2_joy_state(snac_p2_joy),
     .p3_btn_state(snac_p3_btn),
     .p4_btn_state(snac_p4_btn),
-    // Rumble (unused)
+    // PSX analog-mode config and vibration enable
+    .i_psx_analog_en(is_analog_input),
+    .i_psx_vib_en(psx_vib_en),
+    // Rumble data (routed to DualShock motor bytes)
     .i_VIB_SW1(2'b0),
     .i_VIB_DAT1(8'h0),
     .i_VIB_SW2(2'b0),

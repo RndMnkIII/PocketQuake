@@ -114,6 +114,20 @@
           ]
         },
         {
+          "name": "PSX Vibration Motors",
+          "id": 55,
+          "type": "list",
+          "enabled": true,
+          "persist": true,
+          "address": "0xF7000000",
+          "defaultval": 0,
+          "mask": "0xFFEFFFFF",
+          "options": [
+              { "name": "Disabled", "value": "0x00000000" },
+              { "name": "Enabled",  "value": "0x00100000" }
+          ]
+        },
+        {
           "name": "Analogizer Video Out",
           "id": 60,
           "type": "list",
